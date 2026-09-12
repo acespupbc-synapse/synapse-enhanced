@@ -37,15 +37,15 @@ The internal application model must remain decoupled from MDB representation thr
 
 When `reference/mdb/sample.mdb` is present, inspect (read-only) and document:
 
-- [ ] Tables
-- [ ] Columns/fields, data types, sizes
-- [ ] Primary keys, foreign keys, relationships
-- [ ] Indexes (if available)
-- [ ] Nullability, defaults
-- [ ] Binary fields (photo, signature)
-- [ ] Naming conventions
-- [ ] Access-specific behaviors
-- [ ] Sample data patterns (sanitized notes)
+- [x] Tables
+- [x] Columns/fields, data types, sizes
+- [x] Primary keys, foreign keys, relationships
+- [x] Indexes (if available)
+- [x] Nullability, defaults
+- [x] Binary fields (photo, signature)
+- [x] Naming conventions
+- [x] Access-specific behaviors
+- [x] Sample data patterns (sanitized notes)
 
 **Outputs:**
 

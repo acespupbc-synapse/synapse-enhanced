@@ -1,0 +1,478 @@
+/* ==========================================================================
+   Recycle Bin View
+   Note: Modals reuse .prog-modal-* classes from ProgramsView.css (loaded globally via App.jsx).
+         page-footer classes defined below.
+   ========================================================================== */
+
+.recycle-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: #FFFFFF;
+}
+
+.recycle-page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+/* ── Main card ───────────────────────────────────────────────────────────── */
+
+.recycle-card {
+  background: rgba(18, 10, 10, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+
+.recycle-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.recycle-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recycle-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  padding: 8px 14px;
+  min-width: 240px;
+}
+
+.recycle-search-box input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #FFFFFF;
+  font-size: 0.82rem;
+  font-family: var(--font-sans);
+  width: 100%;
+}
+
+.recycle-search-box input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.recycle-empty-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  background: rgba(123, 0, 0, 0.35);
+  border: 1px solid rgba(200, 0, 0, 0.3);
+  border-radius: 7px;
+  color: #FCA5A5;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.recycle-empty-all-btn:hover {
+  background: rgba(123, 0, 0, 0.6);
+  border-color: rgba(200, 0, 0, 0.5);
+  color: #FFFFFF;
+}
+
+/* ── Count badge ─────────────────────────────────────────────────────────── */
+
+.recycle-count-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+
+.recycle-count-num {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 100px;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #E4E4E7;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+
+.recycle-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 60px 24px;
+  gap: 12px;
+  text-align: center;
+}
+
+.recycle-empty-icon {
+  width: 72px;
+  height: 72px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.recycle-empty-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #F4F4F5;
+}
+
+.recycle-empty-sub {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.35);
+  max-width: 380px;
+  line-height: 1.6;
+}
+
+.recycle-clean-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 100px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6EE7B7;
+  margin-top: 4px;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+
+.recycle-table-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.recycle-table-scroll::-webkit-scrollbar { width: 4px; }
+.recycle-table-scroll::-webkit-scrollbar-track { background: transparent; }
+.recycle-table-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+
+.recycle-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.recycle-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(10, 5, 5, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.recycle-table thead th {
+  padding: 12px 18px;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  white-space: nowrap;
+}
+
+.recycle-table thead th:last-child {
+  text-align: right;
+}
+
+.recycle-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.14s;
+}
+
+.recycle-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.recycle-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.recycle-table tbody td {
+  padding: 13px 18px;
+  vertical-align: middle;
+}
+
+/* Student identity cell */
+.recycle-student-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recycle-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+.recycle-student-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #F4F4F5;
+}
+
+.recycle-student-id {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: monospace;
+  margin-top: 1px;
+}
+
+.recycle-prog-badge {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+/* Deleted-at timestamp */
+.recycle-deleted-at {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.recycle-deleted-ago {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 2px;
+}
+
+/* Warning stripe on rows */
+.recycle-table tbody tr td:first-child {
+  border-left: 2px solid rgba(239, 68, 68, 0.25);
+}
+
+/* Action buttons */
+.recycle-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.recycle-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: filter 0.14s, transform 0.1s;
+}
+
+.recycle-btn:active { transform: scale(0.94); }
+
+.recycle-btn.restore {
+  background: rgba(21, 87, 36, 0.8);
+  color: #86EFAC;
+  border: 1px solid rgba(21, 87, 36, 1);
+}
+
+.recycle-btn.restore:hover {
+  background: #155724;
+  color: #FFFFFF;
+}
+
+.recycle-btn.purge {
+  background: rgba(123, 0, 0, 0.7);
+  color: #FCA5A5;
+  border: 1px solid rgba(123, 0, 0, 1);
+}
+
+.recycle-btn.purge:hover {
+  background: #7B0000;
+  color: #FFFFFF;
+}
+
+/* ── Info strip ──────────────────────────────────────────────────────────── */
+
+.recycle-info-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(234, 179, 8, 0.07);
+  border-top: 1px solid rgba(234, 179, 8, 0.12);
+  font-size: 0.72rem;
+  color: rgba(234, 179, 8, 0.7);
+  flex-shrink: 0;
+}
+
+/* ── Shared page footer ──────────────────────────────────────────────────── */
+
+.page-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  margin-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.page-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page-footer-brand {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #E4E4E7;
+}
+
+.page-footer-sub {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.page-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-footer-link {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.page-footer-link:hover { color: rgba(255, 255, 255, 0.75); }
+
+.page-footer-divider {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Modal (reused from ProgramsView pattern) ────────────────────────────── */
+
+.prog-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.prog-modal-box {
+  background: #111010;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 500px;
+  padding: 28px 32px;
+}
+
+.prog-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.prog-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.prog-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.prog-modal-btn-cancel {
+  padding: 10px 24px;
+  background: #7B0000;
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.prog-modal-btn-cancel:hover { background: #990000; }
+
+.prog-modal-btn-save {
+  padding: 10px 24px;
+  background: #155724;
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.prog-modal-btn-save:hover { background: #1a6b2e; }

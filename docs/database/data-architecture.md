@@ -96,7 +96,7 @@ The analysis phase will produce a matrix identifying:
 
 Uncertain items → `TBD / REQUIRES HUMAN CONFIRMATION`
 
-Template location: [mapping-matrix-template.md](./mapping-matrix-template.md)
+Mapping matrix location: [mapping-matrix.md](./mapping-matrix.md)
 
 ## Phase Gate
 

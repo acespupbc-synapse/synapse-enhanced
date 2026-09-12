@@ -9,3 +9,15 @@ reference/mdb/*.accdb
 
 # Local data
 data/
+*.db
+*.sqlite3
+
+# Python / Environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Local scratch and tooling
+scratch/
+.playwright-mcp/

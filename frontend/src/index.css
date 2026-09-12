@@ -1,0 +1,211 @@
+/* ==========================================================================
+   ACES SYNAPSE ENHANCED — DESIGN SYSTEM
+   Font: Poppins | Icons: Phosphor Icons | Bento Aesthetics
+   ========================================================================== */
+
+:root {
+  /* Typography Scale (Optimized & Fluid) */
+  --font-sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.8125rem;  /* 13px */
+  --text-base: 0.9375rem;/* 15px */
+  --text-md: 1.0625rem;  /* 17px */
+  --text-lg: 1.25rem;    /* 20px */
+  --text-xl: 1.5rem;     /* 24px */
+  --text-2xl: clamp(1.75rem, 3.2vw, 2.65rem); /* Hero H1 */
+
+  /* Light Theme Palette (Clean, Warm Minimalist) */
+  --bg-page: #F6F6F8;
+  --bg-page-rgb: 246, 246, 248;
+  --bg-sidebar: rgba(255, 255, 255, 0.78);
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-card-nested: #FFFFFF;
+  --bg-card-hover: rgba(255, 255, 255, 0.96);
+  --bg-pill-active: #FFFFFF;
+  --bg-input: #FFFFFF;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-subtle-hover: rgba(0, 0, 0, 0.15);
+  --border-active: rgba(37, 99, 235, 0.4);
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #8E9BAE;
+  --text-inverse: #FFFFFF;
+
+  --color-brand: #7B0000; /* PUP Maroon accent */
+  --color-brand-light: #FEE2E2;
+  --color-blue: #2563EB;
+  --color-blue-light: #EFF6FF;
+  --color-green: #10B981;
+  --color-green-light: #ECFDF5;
+  --color-amber: #F59E0B;
+  --color-amber-light: #FFFBEB;
+  --color-purple: #8B5CF6;
+  --color-purple-light: #F5F3FF;
+
+  /* Shadows & Elevation */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 10px 30px -4px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  --shadow-card-hover: 0 20px 40px -6px rgba(15, 23, 42, 0.09), 0 4px 12px -2px rgba(15, 23, 42, 0.05);
+  --shadow-pill: 0 4px 14px rgba(0, 0, 0, 0.07);
+
+  /* Rounded Corners (Bento System) */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-pill: 9999px;
+
+  /* Transitions */
+  --trans-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --trans-normal: 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  --trans-smooth: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout Constants */
+  --sidebar-width: 275px;
+  --header-height: 64px;
+}
+
+/* Dark Mode Tokens */
+[data-theme="dark"] {
+  --bg-page: #0B0E14;
+  --bg-page-rgb: 11, 14, 20;
+  --bg-sidebar: rgba(18, 22, 32, 0.85);
+  --bg-card: rgba(20, 26, 38, 0.82);
+  --bg-card-nested: rgba(14, 18, 28, 0.7);
+  --bg-card-hover: rgba(26, 34, 50, 0.92);
+  --bg-pill-active: #1E2738;
+  --bg-input: #151C28;
+
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-subtle-hover: rgba(255, 255, 255, 0.18);
+  --border-active: rgba(96, 165, 250, 0.4);
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #64748B;
+  --text-inverse: #0F172A;
+
+  --color-blue-light: rgba(37, 99, 235, 0.15);
+  --color-green-light: rgba(16, 185, 129, 0.15);
+  --color-amber-light: rgba(245, 158, 11, 0.15);
+  --color-purple-light: rgba(139, 92, 246, 0.15);
+  --color-brand-light: rgba(239, 68, 68, 0.15);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 14px 36px -4px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 22px 48px -6px rgba(0, 0, 0, 0.55);
+  --shadow-pill: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   Base & Resets
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background-color: #060102;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Interactive elements default */
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ==========================================================================
+   App Layout
+   ========================================================================== */
+.app-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  background-color: transparent;
+  z-index: 1;
+}
+
+/* Vanta Animated Canvas Background Container */
+.vanta-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.65;
+  transition: opacity var(--trans-normal);
+}
+
+[data-theme="dark"] .vanta-background {
+  opacity: 0.38;
+}
+
+/* Main Content Wrapper */
+.main-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 36px 44px;
+  margin-left: var(--sidebar-width);
+  z-index: 2;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 1024px) {
+  .main-wrapper {
+    padding: 24px 20px;
+    margin-left: 0; /* Sidebar is off-screen on mobile */
+    margin-top: var(--header-height);
+  }
+}

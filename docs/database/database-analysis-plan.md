@@ -24,12 +24,12 @@ Structured plan for analyzing data structures **before** designing the canonical
 
 | Deliverable | Location | Status |
 |-------------|----------|--------|
-| Legacy schema documentation | `docs/legacy/legacy-schema.md` | TBD |
-| Legacy workflow documentation | `docs/legacy/legacy-workflows.md` | TBD |
-| MDB schema documentation | `docs/mdb/mdb-schema.md` | TBD |
-| MDB data patterns | `docs/mdb/mdb-data-patterns.md` | TBD |
-| Mapping / discrepancy matrix | `docs/database/mapping-matrix.md` | TBD |
-| Analysis findings summary | `docs/database/analysis-summary.md` | TBD |
+| Legacy schema documentation | `docs/legacy/legacy-schema.md` | DONE |
+| Legacy workflow documentation | `docs/legacy/legacy-workflows.md` | DONE |
+| MDB schema documentation | `docs/mdb/mdb-schema.md` | DONE |
+| MDB data patterns | `docs/mdb/mdb-data-patterns.md` | DONE |
+| Mapping / discrepancy matrix | `docs/database/mapping-matrix.md` | DONE |
+| Analysis findings summary | `docs/database/analysis-summary.md` | DONE |
 
 ## Analysis Steps
 
@@ -105,12 +105,12 @@ Do not install application dependencies for the new system during analysis unles
 
 ## Open Investigation Items
 
-| Item | Priority | Owner |
-|------|----------|-------|
-| Binary photo/signature CSV representation for MDB workflow | High | Analysis phase |
-| Legacy photo/signature storage format | High | Legacy analysis |
-| Student ID generation algorithm | High | Legacy analysis |
-| Exact registration field list | High | Legacy + MDB analysis |
-| Address field breakdown (personal vs contact) | High | Legacy + MDB analysis |
-| Duplicate record handling in legacy data | Medium | Legacy data analysis |
-| Academic year / course / section cardinality | Medium | Legacy + MDB analysis |
+| Item | Priority | Owner | Status |
+|------|----------|-------|--------|
+| Binary photo/signature CSV representation for MDB workflow | High | Analysis phase | RESOLVED (Manual via CardFive) |
+| Legacy photo/signature storage format | High | Legacy analysis | RESOLVED (Filesystem) |
+| Student ID generation algorithm | High | Legacy analysis | RESOLVED (Manual input) |
+| Exact registration field list | High | Legacy + MDB analysis | RESOLVED (Documented in mapping matrix) |
+| Address field breakdown (personal vs contact) | High | Legacy + MDB analysis | RESOLVED (Full string mapped to STRT) |
+| Duplicate record handling in legacy data | Medium | Legacy data analysis | RESOLVED (Blocks duplicate STUDNO) |
+| Academic year / course / section cardinality | Medium | Legacy + MDB analysis | RESOLVED (Documented) |

@@ -17,73 +17,73 @@ Document verified facts about the legacy system to inform migration mapping, exp
 
 ### 1. Database Schema
 
-- [ ] Tables and relationships
-- [ ] Column names, types, sizes, nullability
-- [ ] Primary and foreign keys
-- [ ] Indexes and constraints
-- [ ] Photo and signature storage mechanism
-- [ ] Personal address vs contact person address fields
-- [ ] Academic year, course, section structures
-- [ ] Soft-delete / trash implementation
-- [ ] Registration status fields
+- [x] Tables and relationships
+- [x] Column names, types, sizes, nullability
+- [x] Primary and foreign keys
+- [x] Indexes and constraints
+- [x] Photo and signature storage mechanism
+- [x] Personal address vs contact person address fields
+- [x] Academic year, course, section structures
+- [x] Soft-delete / trash implementation
+- [x] Registration status fields
 
 **Output:** `docs/legacy/legacy-schema.md`
 
 ### 2. Registration Workflow
 
-- [ ] Multi-step flow (if present)
-- [ ] Field list per step
-- [ ] Client and server validation rules
-- [ ] Photo capture/upload behavior
-- [ ] Student ID preview logic
-- [ ] Submission and confirmation behavior
-- [ ] Behavior when registration is closed
+- [x] Multi-step flow (if present)
+- [x] Field list per step
+- [x] Client and server validation rules
+- [x] Photo capture/upload behavior
+- [x] Student ID preview logic
+- [x] Submission and confirmation behavior
+- [x] Behavior when registration is closed
 
 **Output:** `docs/legacy/legacy-workflows.md` (registration section)
 
 ### 3. Administrative Workflow
 
-- [ ] Authentication mechanism
-- [ ] Authorization model
-- [ ] CRUD operations on registrations
-- [ ] Search, filter, sort capabilities
-- [ ] Photo and signature management
-- [ ] Course, section, academic year management
-- [ ] Open/close registration control
-- [ ] Soft-delete, restore, permanent delete (if any)
-- [ ] Grouping by academic year
+- [x] Authentication mechanism
+- [x] Authorization model
+- [x] CRUD operations on registrations
+- [x] Search, filter, sort capabilities
+- [x] Photo and signature management
+- [x] Course, section, academic year management
+- [x] Open/close registration control
+- [x] Soft-delete, restore, permanent delete (if any)
+- [x] Grouping by academic year
 
 **Output:** `docs/legacy/legacy-workflows.md` (admin section)
 
 ### 4. Export Behavior
 
-- [ ] CSV export format and columns
-- [ ] XLSX export (if present)
-- [ ] PDF export (if present)
-- [ ] How photos/signatures appear in exports
-- [ ] MDB workflow integration points (if documented in legacy)
+- [x] CSV export format and columns
+- [x] XLSX export (if present)
+- [x] PDF export (if present)
+- [x] How photos/signatures appear in exports
+- [x] MDB workflow integration points (if documented in legacy)
 
 **Output:** `docs/legacy/legacy-exports.md`
 
 ### 5. Business Rules and Edge Cases
 
-- [ ] Student ID generation
-- [ ] Duplicate handling
-- [ ] Required vs optional fields
-- [ ] Data inconsistencies in production data (patterns, not PII)
-- [ ] Legacy-only fields with unclear purpose
-- [ ] Derived/computed fields
+- [x] Student ID generation
+- [x] Duplicate handling
+- [x] Required vs optional fields
+- [x] Data inconsistencies in production data (patterns, not PII)
+- [x] Legacy-only fields with unclear purpose
+- [x] Derived/computed fields
 
 **Output:** `docs/legacy/legacy-business-rules.md`
 
 ### 6. UI/UX Reference (Behavioral, Not Binding)
 
-- [ ] Registration panel layout and flow
-- [ ] Admin panel information density
-- [ ] Footer content and credentials
-- [ ] Student ID layout
-- [ ] Mobile behavior (if observable)
-- [ ] Error message patterns
+- [x] Registration panel layout and flow
+- [x] Admin panel information density
+- [x] Footer content and credentials
+- [x] Student ID layout
+- [x] Mobile behavior (if observable)
+- [x] Error message patterns
 
 **Output:** `docs/legacy/legacy-ui-reference.md`
 
@@ -101,26 +101,26 @@ Note: New UI should **improve** on legacy — document behavior and content, not
 
 When examining `pupbc_synapse`:
 
-- [ ] Project structure and entry points
-- [ ] Database models / migrations
-- [ ] Forms and validation
-- [ ] Views / routes / API endpoints
-- [ ] Templates and static assets
-- [ ] Export modules
-- [ ] Configuration and environment variables
-- [ ] Dependencies (`requirements.txt`, etc.)
-- [ ] Tests (if any) for behavioral hints
-- [ ] README and inline documentation
+- [x] Project structure and entry points
+- [x] Database models / migrations
+- [x] Forms and validation
+- [x] Views / routes / API endpoints
+- [x] Templates and static assets
+- [x] Export modules
+- [x] Configuration and environment variables
+- [x] Dependencies (`requirements.txt`, etc.)
+- [x] Tests (if any) for behavioral hints
+- [x] README and inline documentation
 
 ## Deliverables
 
 | File | Description | Status |
 |------|-------------|--------|
-| `legacy-schema.md` | Database schema documentation | TBD |
-| `legacy-workflows.md` | Registration and admin workflows | TBD |
-| `legacy-exports.md` | Export behavior | TBD |
-| `legacy-business-rules.md` | Rules and edge cases | TBD |
-| `legacy-ui-reference.md` | UI/UX behavioral reference | TBD |
+| `legacy-schema.md` | Database schema documentation | DONE |
+| `legacy-workflows.md` | Registration and admin workflows | DONE |
+| `legacy-exports.md` | Export behavior | DONE |
+| `legacy-business-rules.md` | Rules and edge cases | DONE |
+| `legacy-ui-reference.md` | UI/UX behavioral reference | DONE |
 
 ## Constraints
 
