@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MagnifyingGlass,
   Users,
@@ -7,14 +7,14 @@ import {
   PencilSimple,
   Trash,
   SortAscending,
-  Faders,
   Camera,
   Signature,
   Crop,
   CaretDown,
   WarningCircle,
   CheckCircle,
-  X
+  X,
+  GraduationCap
 } from '@phosphor-icons/react';
 import { studentApi } from '../../services/api';
 import { CameraModal, CropperModal, SignatureModal } from '../common/MediaModals';
@@ -656,16 +656,15 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Sorting state
+  // Sorting state (strictly 4 options)
   const [sortBy, setSortBy] = useState('name-asc');
   const [showSortMenu, setShowSortMenu] = useState(false);
 
   const sortLabels = {
-    'name-asc': 'Name (A → Z)',
-    'name-desc': 'Name (Z → A)',
-    'num-asc': 'Student No. (Asc)',
-    'num-desc': 'Student No. (Desc)',
-    'recent': 'Recent First'
+    'name-asc': 'Name (A to Z)',
+    'name-desc': 'Name (Z to A)',
+    'recent': 'Recent First',
+    'oldest': 'Oldest First'
   };
 
   const filtered = students.filter(s =>
@@ -676,8 +675,8 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
   const sorted = [...filtered].sort((a, b) => {
     if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
     if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-    if (sortBy === 'num-asc') return a.studentNumber.localeCompare(b.studentNumber);
-    if (sortBy === 'num-desc') return b.studentNumber.localeCompare(a.studentNumber);
+    if (sortBy === 'recent') return (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0);
+    if (sortBy === 'oldest') return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
     return 0;
   });
 
@@ -717,7 +716,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
           Registrations
         </button>
         {' '}
-        <span>/ {org.code} – {program.code}</span>
+        <span>/ {org.code} - {program.code}</span>
       </h1>
 
       <div className="regs-drilldown-body">
@@ -749,16 +748,21 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
 
         {/* Right: Student list */}
         <div className="regs-student-panel">
-          {/* Panel header — program info */}
-          <div className="regs-student-panel-header">
+          {/* Panel header — program info with dynamic org header */}
+          <div
+            className="regs-student-panel-header"
+            style={{ backgroundImage: `url(${org.header})` }}
+          >
             <div className="regs-panel-header-left">
-              <img src={org.logo} alt={org.code} className="regs-panel-header-logo" />
+              <GraduationCap size={36} weight="fill" color="#FFFFFF" style={{ flexShrink: 0 }} />
               <div>
                 <div className="regs-panel-program-name">{program.name}</div>
-                <div className="regs-panel-section-label">Section: {activeSection?.sec ?? '—'}</div>
+                <div className="regs-panel-section-label">Section: {activeSection?.sec ?? '1-1'}</div>
               </div>
             </div>
-            <img src={org.logo} alt="" style={{ width: 44, height: 44, objectFit: 'contain', opacity: 0.7 }} />
+            <div className="regs-panel-header-right">
+              <img src={org.logo} alt={org.code} className="regs-panel-header-logo-badge" />
+            </div>
           </div>
 
           {/* Toolbar */}
@@ -774,7 +778,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
               />
             </div>
             
-            {/* Sort by custom dropdown */}
+            {/* Sort by custom dropdown (strictly 4 options) */}
             <div className="regs-sort-wrapper" style={{ position: 'relative' }}>
               <button
                 type="button"
@@ -783,7 +787,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
                 aria-expanded={showSortMenu}
               >
                 <SortAscending size={15} />
-                <span>Sort: {sortLabels[sortBy] || 'Name'}</span>
+                <span>Sort: {sortLabels[sortBy] || 'Name (A to Z)'}</span>
                 <CaretDown size={11} />
               </button>
 
@@ -805,10 +809,6 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
                 </div>
               )}
             </div>
-
-            <button className="regs-filter-icon-btn" aria-label="Filter options">
-              <Faders size={15} />
-            </button>
           </div>
 
           {/* Student list */}
@@ -820,37 +820,38 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
             ) : (
               sorted.map(student => (
                 <div className="regs-student-row" key={student.id}>
-                  <div className="regs-student-row-left">
-                    <AvatarPlaceholder size={48} photoUrl={student.photoUrl} />
-                    <div>
-                      <div className="regs-student-name">{student.name}</div>
-                      <div className="regs-student-meta">
-                        <span>{student.section}</span>
-                        <span className="regs-dot">·</span>
-                        <span>{student.studentNumber}</span>
-                      </div>
-                      <div className="regs-student-time">
-                        Registered <strong>{student.time || 'recently'}</strong>
-                      </div>
+                  <div className="regs-student-avatar">
+                    <AvatarPlaceholder size={44} photoUrl={student.photoUrl} />
+                  </div>
+
+                  <div className="regs-student-info">
+                    <div className="regs-student-name">{student.name}</div>
+                    <div className="regs-student-meta-item">{student.studentNumber}</div>
+                    <div className="regs-student-meta-item">
+                      {(student.program || program.code).toUpperCase()} {student.section}
                     </div>
                   </div>
 
-                  <div className="regs-row-actions">
-                    <button
-                      className="regs-row-action-btn edit-btn"
-                      onClick={() => setEditStudent(student)}
-                      title="Edit student record"
-                    >
-                      <PencilSimple size={16} />
-                      <span>Edit</span>
-                    </button>
-                    <button
-                      className="regs-row-action-btn delete-btn"
-                      onClick={() => setStudentToDelete(student)}
-                      title="Move to recycle bin"
-                    >
-                      <Trash size={16} />
-                    </button>
+                  <div className="regs-student-right-col">
+                    <div className="regs-student-time">{student.time || '1 min ago'}</div>
+                    <div className="regs-student-actions">
+                      <button
+                        type="button"
+                        className="regs-action-btn edit"
+                        onClick={() => setEditStudent(student)}
+                        title="Edit student record"
+                      >
+                        <PencilSimple size={15} weight="bold" color="#FFFFFF" />
+                      </button>
+                      <button
+                        type="button"
+                        className="regs-action-btn delete"
+                        onClick={() => setStudentToDelete(student)}
+                        title="Move to recycle bin"
+                      >
+                        <Trash size={15} weight="bold" color="#FFFFFF" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -955,6 +956,20 @@ export default function RegistrationsView({ initialProgramCode, onShowToast }) {
     }
     return null;
   }); // { org, program }
+
+  useEffect(() => {
+    if (initialProgramCode) {
+      for (const org of ORGS) {
+        const found = org.programs.find(p => p.code === initialProgramCode);
+        if (found) {
+          setDrilldown({ org, program: found });
+          return;
+        }
+      }
+    } else {
+      setDrilldown(null);
+    }
+  }, [initialProgramCode]);
 
   if (drilldown) {
     return (

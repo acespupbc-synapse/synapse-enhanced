@@ -12,6 +12,7 @@ import {
   WarningCircle,
   Eraser
 } from '@phosphor-icons/react';
+import './MediaModals.css';
 
 // =============================================================================
 // 1. Camera Capture Modal

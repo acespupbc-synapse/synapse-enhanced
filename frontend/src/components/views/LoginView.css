@@ -281,51 +281,21 @@
   }
 }
 
-/* ── Admin Login Modal Dialog ────────────────────────────────────────────── */
+/* ── Admin Authentication Card (In-place Transition) ─────────────────────── */
 
-.login-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-  animation: modalFadeIn 0.2s ease-out;
+.login-auth-card {
+  animation: loginCardFade 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.login-modal-box {
-  background: #140A0A;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 32px 36px;
-  width: 100%;
-  max-width: 420px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(123, 0, 0, 0.2);
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.login-modal-close {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.4);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  transition: all 0.15s;
-}
-
-.login-modal-close:hover {
-  color: #FFFFFF;
-  background: rgba(255, 255, 255, 0.08);
+@keyframes loginCardFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .login-modal-header {

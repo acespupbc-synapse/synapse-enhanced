@@ -4,7 +4,7 @@ import { authApi } from '../../services/api';
 import './LoginView.css';
 
 export default function LoginView({ onLogin, onRegister }) {
-  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(false);
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +23,6 @@ export default function LoginView({ onLogin, onRegister }) {
     try {
       const result = await authApi.login(username.trim(), password);
       setIsLoading(false);
-      setShowAdminModal(false);
       if (onLogin) {
         onLogin(result.user || { username });
       }
@@ -35,30 +34,120 @@ export default function LoginView({ onLogin, onRegister }) {
 
   return (
     <div className="login-view-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h1>
-            <span className="brand-white">ACES</span> <span className="brand-red">Synapse</span>
-          </h1>
-          <p className="subtitle">
-            The Official Student ID Processing System of the Association of Computer
-            Engineering Students - PUPBC
-          </p>
-        </div>
+      {!isAdminMode ? (
+        <div className="login-card">
+          <div className="login-header">
+            <h1>
+              <span className="brand-white">ACES</span> <span className="brand-red">Synapse</span>
+            </h1>
+            <p className="subtitle">
+              The Official Student ID Processing System of the Association of Computer
+              Engineering Students - PUPBC
+            </p>
+          </div>
 
-        <div className="login-actions">
-          <button className="btn-primary-red" onClick={onRegister}>
-            Student Registration
-          </button>
-          <button className="btn-secondary-dark" onClick={() => setShowAdminModal(true)}>
-            Admin Login
-          </button>
-        </div>
+          <div className="login-actions">
+            <button className="btn-primary-red" onClick={onRegister}>
+              Student Registration
+            </button>
+            <button
+              className="btn-secondary-dark"
+              onClick={() => {
+                setErrorMsg('');
+                setPassword('');
+                setIsAdminMode(true);
+              }}
+            >
+              Admin Login
+            </button>
+          </div>
 
-        <div className="login-card-footer">
-          ACES-PUPBC STUDENT INFORMATION SYSTEM
+          <div className="login-card-footer">
+            ACES-PUPBC STUDENT INFORMATION SYSTEM
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="login-card login-auth-card">
+          <div className="login-modal-header">
+            <div className="login-modal-icon">
+              <ShieldCheck size={28} weight="fill" color="#E00000" />
+            </div>
+            <h2 className="login-modal-title">Admin Authentication</h2>
+            <p className="login-modal-subtitle">
+              Enter your administrative credentials to access the management dashboard.
+            </p>
+          </div>
+
+          <form onSubmit={handleAdminSubmit} className="login-modal-form">
+            {errorMsg && (
+              <div className="login-modal-alert">
+                <WarningCircle size={16} weight="bold" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <div className="login-modal-field">
+              <label>Username</label>
+              <div className="login-input-wrap">
+                <User size={16} className="login-field-icon" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Username"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="login-modal-field">
+              <label>Password</label>
+              <div className="login-input-wrap">
+                <LockKey size={16} className="login-field-icon" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                />
+              </div>
+            </div>
+
+            <div className="login-modal-actions">
+              <button
+                type="button"
+                className="btn-secondary-dark"
+                style={{ padding: '10px 18px', fontSize: '0.85rem' }}
+                onClick={() => {
+                  setErrorMsg('');
+                  setPassword('');
+                  setIsAdminMode(false);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary-red"
+                style={{ padding: '10px 24px', fontSize: '0.85rem' }}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ArrowClockwise size={16} className="spin" /> Verifying…
+                  </span>
+                ) : (
+                  'Sign In'
+                )}
+              </button>
+            </div>
+          </form>
+
+          <div className="login-card-footer" style={{ marginTop: 24 }}>
+            ACES-PUPBC STUDENT INFORMATION SYSTEM
+          </div>
+        </div>
+      )}
 
       <div className="login-global-footer">
         <div className="footer-left">
@@ -82,93 +171,6 @@ export default function LoginView({ onLogin, onRegister }) {
       <div className="footer-logo">
         <img src="/img/orgs/aces.png" alt="ACES Logo" className="aces-logo" />
       </div>
-
-      {/* Admin Login Modal Dialog */}
-      {showAdminModal && (
-        <div className="login-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="login-modal-dialog">
-            <button
-              type="button"
-              className="login-modal-close"
-              onClick={() => setShowAdminModal(false)}
-              aria-label="Close modal"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="login-modal-header">
-              <div className="login-modal-icon">
-                <ShieldCheck size={28} weight="fill" color="#E00000" />
-              </div>
-              <h2 className="login-modal-title">Admin Authentication</h2>
-              <p className="login-modal-subtitle">
-                Enter your administrative credentials to access the management dashboard.
-              </p>
-            </div>
-
-            <form onSubmit={handleAdminSubmit} className="login-modal-form">
-              {errorMsg && (
-                <div className="login-modal-alert">
-                  <WarningCircle size={16} weight="bold" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              <div className="login-modal-field">
-                <label>Username</label>
-                <div className="login-input-wrap">
-                  <User size={16} className="login-field-icon" />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Username"
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <div className="login-modal-field">
-                <label>Password</label>
-                <div className="login-input-wrap">
-                  <LockKey size={16} className="login-field-icon" />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password"
-                  />
-                </div>
-              </div>
-
-              <div className="login-modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary-dark"
-                  style={{ padding: '10px 18px', fontSize: '0.85rem' }}
-                  onClick={() => setShowAdminModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary-red"
-                  style={{ padding: '10px 24px', fontSize: '0.85rem' }}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <ArrowClockwise size={16} className="spin" /> Verifying…
-                    </span>
-                  ) : (
-                    'Sign In'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

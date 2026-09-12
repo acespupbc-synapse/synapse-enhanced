@@ -325,19 +325,35 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
             <div className="program-cards-list-scroll">
               <div className="program-cards-list">
                 {programRegistrations.map((prog) => (
-                  <button
+                  <div
                     className="prog-banner-card action-btn-hover"
                     key={prog.code}
-                    style={{ backgroundImage: `url(${prog.header})` }}
-                    onClick={() => onNavigateTab && onNavigateTab('registrations', prog.code)}
+                    style={{ backgroundImage: `url(${prog.header})`, cursor: 'pointer' }}
+                    onClick={() => onNavigateTab && onNavigateTab('registrations', prog.sections[0]?.name)}
                     title={`View ${prog.code} Registrations`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onNavigateTab && onNavigateTab('registrations', prog.sections[0]?.name);
+                      }
+                    }}
                   >
                     <div className="prog-banner-overlay" />
                     <img src={prog.logo} alt={prog.code} className="prog-banner-logo" />
                     <div className="prog-sections-wrap">
                       <div className="prog-sections-row">
                         {prog.sections.slice(0, 2).map((sec, idx) => (
-                          <div className="prog-section-pill" key={idx}>
+                          <div
+                            className="prog-section-pill"
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onNavigateTab && onNavigateTab('registrations', sec.name);
+                            }}
+                            title={`View ${sec.name} Registrations`}
+                          >
                             <span className="sec-name">{sec.name}</span>
                             <span className="sec-count-box">
                               <Users size={11} weight="fill" /> {sec.count}
@@ -348,7 +364,15 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
                       {prog.sections.length > 2 && (
                         <div className="prog-sections-row">
                           {prog.sections.slice(2, 4).map((sec, idx) => (
-                            <div className="prog-section-pill" key={idx}>
+                            <div
+                              className="prog-section-pill"
+                              key={idx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onNavigateTab && onNavigateTab('registrations', sec.name);
+                              }}
+                              title={`View ${sec.name} Registrations`}
+                            >
                               <span className="sec-name">{sec.name}</span>
                               <span className="sec-count-box">
                                 <Users size={11} weight="fill" /> {sec.count}
@@ -358,7 +382,7 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
                         </div>
                       )}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>

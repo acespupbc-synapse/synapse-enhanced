@@ -268,7 +268,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
 
   // Handle purge / reset action
   const handleExecuteDangerAction = () => {
-    if (dangerConfirmText !== 'RESET') {
+    if (dangerConfirmText !== 'DELETE') {
       return;
     }
     setShowDangerModal(false);
@@ -366,10 +366,12 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                       Control whether students can submit registrations through the public registration wizard.
                     </p>
                   </div>
-                  <div className={`status-pill ${portalConfig.isOpen ? 'online' : 'offline'}`}>
-                    <span className="pulse-dot" />
-                    <span>{portalConfig.isOpen ? 'OPEN FOR SUBMISSIONS' : 'PORTAL CLOSED'}</span>
-                  </div>
+                  {portalConfig.isOpen && (
+                    <div className="status-pill online">
+                      <span className="pulse-dot" />
+                      <span>OPEN FOR SUBMISSIONS</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="settings-toggle-row">
@@ -608,10 +610,6 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                       Download full data dumps including database rows, student photos, and signatures.
                     </p>
                   </div>
-                  <div className="status-pill online">
-                    <span className="pulse-dot" />
-                    <span>SYSTEM ONLINE</span>
-                  </div>
                 </div>
 
                 <div className="meta-box">
@@ -779,7 +777,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
               <div className="settings-notice-box">
                 <WarningCircle size={20} weight="fill" color="#EF4444" style={{ flexShrink: 0 }} />
                 <p className="settings-notice-text">
-                  <strong>Notice:</strong> Adding a new Academic Year will establish a new registration cohort and scope all subsequent student records and exports to this year.
+                  Adding a new academic year starts a new student registration group. All new student records and exports will be tied to this year.
                 </p>
               </div>
 
@@ -842,7 +840,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
 
             <p className="settings-modal-desc">
               This will permanently delete all records currently in the Recycle Bin. This action cannot be undone.
-              Type <strong>RESET</strong> below to confirm.
+              Type <strong>DELETE</strong> below to confirm.
             </p>
 
             <input
@@ -850,7 +848,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
               className="settings-input"
               value={dangerConfirmText}
               onChange={e => setDangerConfirmText(e.target.value)}
-              placeholder='Type "RESET" to confirm'
+              placeholder='Type "DELETE" to confirm'
               style={{ marginBottom: 16 }}
             />
 
@@ -866,9 +864,9 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
               <button
                 type="button"
                 className="btn-danger"
-                disabled={dangerConfirmText !== 'RESET'}
+                disabled={dangerConfirmText !== 'DELETE'}
                 onClick={handleExecuteDangerAction}
-                style={{ opacity: dangerConfirmText === 'RESET' ? 1 : 0.5 }}
+                style={{ opacity: dangerConfirmText === 'DELETE' ? 1 : 0.5 }}
               >
                 Confirm Purge
               </button>

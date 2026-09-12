@@ -1,0 +1,559 @@
+/* MediaModals.css — Self-contained styling for Camera, Cropper, and Signature Modals */
+
+.sreg-modal-backdrop,
+.sreg-cam-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: sregModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes sregModalFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ── Generic Dialog Base ── */
+.sreg-cam-modal-dialog,
+.sreg-cropper-modal-dialog,
+.sreg-sig-modal-dialog {
+  width: 100%;
+  background-color: #141416;
+  border: 1px solid #27272A;
+  border-radius: 12px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #F3F4F6;
+  font-family: inherit;
+}
+
+/* ── Header ── */
+.sreg-cam-modal-header,
+.sreg-cropper-modal-header,
+.sreg-sig-modal-header {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #27272A;
+  background-color: #0F0F11;
+  gap: 12px;
+}
+
+.sreg-cam-modal-title-wrap,
+.sreg-cropper-modal-title-wrap,
+.sreg-sig-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sreg-cam-modal-title,
+.sreg-cropper-modal-title,
+.sreg-sig-modal-title {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #F9FAFB;
+  letter-spacing: -0.01em;
+}
+
+.sreg-cropper-modal-spec,
+.sreg-sig-modal-spec {
+  display: block;
+  font-size: 0.72rem;
+  color: #9CA3AF;
+  margin-top: 1px;
+}
+
+.sreg-cam-modal-close {
+  background: transparent;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.sreg-cam-modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+}
+
+/* ── Camera Device Select ── */
+.sreg-cam-device-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.sreg-cam-device-label {
+  font-size: 0.75rem;
+  color: #9CA3AF;
+}
+
+.sreg-cam-device-select {
+  background: #1F1F23;
+  color: #E5E7EB;
+  border: 1px solid #3F3F46;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  outline: none;
+}
+
+/* ── Camera Viewfinder & Body ── */
+.sreg-cam-modal-body {
+  padding: 18px;
+  background-color: #09090B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sreg-cam-viewfinder-wrap,
+.sreg-cam-preview-wrap {
+  position: relative;
+  width: 480px;
+  max-width: 100%;
+  aspect-ratio: 4 / 3;
+  background-color: #000000;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #27272A;
+}
+
+.sreg-cam-video,
+.sreg-cam-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sreg-cam-overlay-guides {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sreg-cam-guide-oval {
+  width: 180px;
+  height: 230px;
+  border: 2px dashed rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+}
+
+.sreg-cam-guide-text {
+  margin-top: 12px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.sreg-cam-preview-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(16, 185, 129, 0.9);
+  color: #FFFFFF;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sreg-cam-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 36px 16px;
+  color: #FFFFFF;
+}
+
+.sreg-cam-error-state p {
+  font-size: 0.85rem;
+  color: #F87171;
+  max-width: 320px;
+  line-height: 1.45;
+}
+
+/* ── Cropper Modal ── */
+.sreg-cropper-modal-dialog {
+  max-width: 480px;
+}
+
+.sreg-cropper-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background-color: #09090B;
+}
+
+.sreg-crop-viewport {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  max-width: 100%;
+  background-color: #111111;
+  overflow: hidden;
+  border-radius: 8px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.sreg-crop-viewport:active {
+  cursor: grabbing;
+}
+
+.sreg-crop-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.sreg-crop-guide-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+}
+
+.sreg-crop-guide-oval {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 65%;
+  height: 72%;
+  border: 1.5px dashed rgba(255, 255, 255, 0.45);
+  border-radius: 50% 50% 45% 45%;
+}
+
+.sreg-crop-guide-line {
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.sreg-crop-guide-line.h1 { top: 33.33%; left: 0; right: 0; height: 1px; }
+.sreg-crop-guide-line.h2 { top: 66.66%; left: 0; right: 0; height: 1px; }
+.sreg-crop-guide-line.v1 { left: 33.33%; top: 0; bottom: 0; width: 1px; }
+.sreg-crop-guide-line.v2 { left: 66.66%; top: 0; bottom: 0; width: 1px; }
+
+.sreg-crop-toolbar {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid #27272A;
+  border-radius: 8px;
+}
+
+.sreg-crop-zoom-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sreg-crop-label {
+  font-size: 0.74rem;
+  color: #9CA3AF;
+  font-weight: 500;
+}
+
+.sreg-crop-btn-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background-color: #27272A;
+  border: 1px solid #3F3F46;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.sreg-crop-btn-mini:hover {
+  background-color: #3F3F46;
+}
+
+.sreg-crop-slider {
+  flex: 1;
+  accent-color: #E00000;
+  cursor: pointer;
+}
+
+.sreg-crop-val {
+  font-size: 0.72rem;
+  color: #D1D5DB;
+  font-family: monospace;
+  min-width: 36px;
+  text-align: right;
+}
+
+.sreg-crop-tools-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sreg-crop-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background-color: #27272A;
+  border: 1px solid #3F3F46;
+  color: #E5E7EB;
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sreg-crop-tool-btn:hover {
+  background-color: #3F3F46;
+  color: #FFFFFF;
+}
+
+/* ── Signature Modal (2000 × 1200 px Standard) ── */
+.sreg-sig-modal-dialog {
+  max-width: 740px;
+}
+
+.sreg-sig-modal-body {
+  padding: 16px;
+  background-color: #09090B;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sreg-sig-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  background-color: #FFFFFF;
+  border: 1px solid #3F3F46;
+  border-radius: 8px;
+  overflow: hidden;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
+.sreg-sig-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background-color: #FFFFFF;
+}
+
+.sreg-sig-canvas-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #9CA3AF;
+  pointer-events: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.sreg-sig-guideline {
+  position: absolute;
+  bottom: 50px;
+  left: 30px;
+  right: 30px;
+  border-bottom: 1.5px dashed #CBD5E1;
+  pointer-events: none;
+}
+
+.sreg-sig-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #141416;
+  border: 1px solid #27272A;
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.sreg-sig-pen-sizes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sreg-sig-label {
+  font-size: 0.76rem;
+  color: #9CA3AF;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.sreg-sig-size-btn {
+  background: #1F1F23;
+  color: #D1D5DB;
+  border: 1px solid #3F3F46;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sreg-sig-size-btn:hover {
+  background: #27272A;
+  color: #FFFFFF;
+}
+
+.sreg-sig-size-btn.active {
+  background: #7B0000;
+  border-color: #E00000;
+  color: #FFFFFF;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(224, 0, 0, 0.3);
+}
+
+.sreg-sig-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sreg-sig-btn-sec {
+  background: #1F1F23;
+  color: #E5E7EB;
+  border: 1px solid #3F3F46;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.sreg-sig-btn-sec:hover:not(:disabled) {
+  background: #27272A;
+  color: #FFFFFF;
+  border-color: #52525B;
+}
+
+.sreg-sig-btn-sec:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Shared Footers & Buttons ── */
+.sreg-cam-modal-footer,
+.sreg-cropper-modal-footer,
+.sreg-sig-modal-footer {
+  padding: 12px 18px;
+  border-top: 1px solid #27272A;
+  background-color: #0F0F11;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.sreg-btn-prev {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background-color: #1F1F23;
+  border: 1px solid #3F3F46;
+  color: #E5E7EB;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sreg-btn-prev:hover {
+  background-color: #27272A;
+  color: #FFFFFF;
+  border-color: #52525B;
+}
+
+.sreg-cam-snap-btn,
+.sreg-cam-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 6px;
+  color: #FFFFFF;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid #E00000;
+  background-color: #7B0000;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 2px 10px rgba(123, 0, 0, 0.4);
+}
+
+.sreg-cam-snap-btn:hover:not(:disabled),
+.sreg-cam-confirm-btn:hover:not(:disabled) {
+  background-color: #990000;
+  border-color: #FF1A1A;
+  transform: translateY(-1px);
+}
+
+.sreg-cam-snap-btn:disabled,
+.sreg-cam-confirm-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

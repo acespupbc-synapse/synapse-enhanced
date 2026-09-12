@@ -18,6 +18,7 @@ export default function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedProgramFilter, setSelectedProgramFilter] = useState(null);
+  const [regsResetKey, setRegsResetKey] = useState(0);
   const [isDark, setIsDark] = useState(true);
   const [isOpenMobile, setIsOpenMobile] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -161,6 +162,7 @@ export default function App() {
   const handleNavigateTab = (tab, programCode) => {
     if (programCode) {
       setSelectedProgramFilter(programCode);
+      setRegsResetKey((k) => k + 1);
     } else {
       setSelectedProgramFilter(null);
     }
@@ -206,7 +208,12 @@ export default function App() {
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(id) => {
-          setSelectedProgramFilter(null);
+          if (id === 'registrations') {
+            setSelectedProgramFilter(null);
+            setRegsResetKey((k) => k + 1);
+          } else {
+            setSelectedProgramFilter(null);
+          }
           setActiveTab(id);
         }}
         isDark={isDark}
@@ -229,6 +236,7 @@ export default function App() {
         )}
         {activeTab === 'registrations' && (
           <RegistrationsView
+            key={`regs_${regsResetKey}_${selectedProgramFilter || 'all'}`}
             initialProgramCode={selectedProgramFilter}
             onShowToast={showToast}
           />
