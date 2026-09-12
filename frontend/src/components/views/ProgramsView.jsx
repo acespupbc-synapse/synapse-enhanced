@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
+import { programsApi } from '../../services/api';
 import './ProgramsView.css';
 
 
@@ -141,11 +142,28 @@ export default function ProgramsView() {
   const [editTarget, setEditTarget]   = useState(null);  // null | program | 'new'
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  useEffect(() => {
+    programsApi.getAll().then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        setPrograms(data);
+      }
+    }).catch(() => {});
+  }, []);
+
   const displayed = filterOrg === 'ALL'
     ? programs
     : programs.filter(p => p.org === filterOrg);
 
-  const handleSave = (updated) => {
+  const handleSave = async (updated) => {
+    const isEdit = programs.some(p => p.id === updated.id);
+    try {
+      if (isEdit) {
+        await programsApi.update(updated.id, updated);
+      } else {
+        await programsApi.create(updated);
+      }
+    } catch (_) {}
+
     setPrograms(prev => {
       const idx = prev.findIndex(p => p.id === updated.id);
       if (idx >= 0) {
@@ -157,7 +175,10 @@ export default function ProgramsView() {
     });
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
+    try {
+      await programsApi.delete(id);
+    } catch (_) {}
     setPrograms(prev => prev.filter(p => p.id !== id));
   };
 

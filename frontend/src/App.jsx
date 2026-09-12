@@ -9,6 +9,7 @@ import RecycleBinView from './components/views/RecycleBinView';
 import SettingsView from './components/views/SettingsView';
 import LoginView from './components/views/LoginView';
 import StudentRegistrationView from './components/views/StudentRegistrationView';
+import { statsApi, settingsApi, exportApi } from './services/api';
 import './index.css';
 
 export default function App() {
@@ -29,17 +30,14 @@ export default function App() {
   // Fetch live stats from backend when authenticated
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/stats');
-      if (res.ok) {
-        const data = await res.json();
-        setStats((prev) => ({
-          ...prev,
-          isRegistrationOpen: data.isRegistrationOpen ?? prev.isRegistrationOpen,
-          enrolledCount: data.enrolledCount ?? prev.enrolledCount,
-          dbStatus: data.dbStatus ?? prev.dbStatus,
-          ayName: data.activeAcademicYear ?? prev.ayName,
-        }));
-      }
+      const data = await statsApi.getDashboardStats();
+      setStats((prev) => ({
+        ...prev,
+        isRegistrationOpen: data.isRegistrationOpen ?? prev.isRegistrationOpen,
+        enrolledCount: data.enrolledCount ?? prev.enrolledCount,
+        dbStatus: data.dbStatus ?? prev.dbStatus,
+        ayName: data.activeAcademicYear ?? prev.ayName,
+      }));
     } catch (_) {
       // Backend not available — keep default values silently
     }
@@ -70,16 +68,25 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleToggleRegistration = () => {
-    setStats((prev) => {
-      const nextState = !prev.isRegistrationOpen;
-      showToast(nextState ? 'Registration is now OPEN' : 'Registration is now CLOSED');
-      return { ...prev, isRegistrationOpen: nextState };
-    });
+  const handleToggleRegistration = async () => {
+    const nextState = !stats.isRegistrationOpen;
+    showToast(nextState ? 'Registration is now OPEN' : 'Registration is now CLOSED');
+    try {
+      await settingsApi.toggleRegistration(nextState);
+    } catch (_) {}
+    setStats((prev) => ({ ...prev, isRegistrationOpen: nextState }));
   };
 
-  const handleExportCsv = () => {
-    // Generate and download standard CardFive-compatible CSV file
+  const handleExportCsv = async () => {
+    try {
+      const downloaded = await exportApi.downloadCsv();
+      if (downloaded) {
+        showToast('CardFive MDB CSV downloaded successfully!');
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback: Generate and download standard CardFive-compatible CSV file directly in client
     const headers = [
       'STUDENT_NUMBER',
       'FIRST_NAME',
@@ -202,6 +209,7 @@ export default function App() {
           <SettingsView
             stats={stats}
             onToggleRegistration={handleToggleRegistration}
+            onShowToast={showToast}
           />
         )}
       </div>

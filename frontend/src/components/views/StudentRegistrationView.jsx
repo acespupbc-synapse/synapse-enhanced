@@ -24,6 +24,7 @@ import {
   Plus,
   Minus
 } from '@phosphor-icons/react';
+import { studentApi } from '../../services/api';
 import './StudentRegistrationView.css';
 
 // ── Academic Organizations & Academic Programs ──────────────────────────────
@@ -131,6 +132,8 @@ export default function StudentRegistrationView({ onBack }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionResponse, setSubmissionResponse] = useState(null);
   const [stepError, setStepError] = useState('');
   const [isOrgOpen, setIsOrgOpen] = useState(false);
 
@@ -788,13 +791,23 @@ export default function StudentRegistrationView({ onBack }) {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.certified) {
       setStepError('You must check the certification box to submit your registration.');
       return;
     }
-    setIsSubmitted(true);
+    setIsSubmitting(true);
+    setStepError('');
+    try {
+      const res = await studentApi.register(formData);
+      setSubmissionResponse(res);
+      setIsSubmitted(true);
+    } catch (err) {
+      setStepError(err.message || 'Registration submission failed. Please check your details and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -829,6 +842,8 @@ export default function StudentRegistrationView({ onBack }) {
     setDobYear('');
     setCurrentStep(1);
     setIsSubmitted(false);
+    setIsSubmitting(false);
+    setSubmissionResponse(null);
     setStepError('');
   };
 
@@ -1541,9 +1556,15 @@ export default function StudentRegistrationView({ onBack }) {
                       type="button"
                       className="sreg-btn-submit"
                       onClick={handleSubmit}
-                      disabled={!formData.certified}
+                      disabled={!formData.certified || isSubmitting}
+                      style={{
+                        backgroundColor: selectedOrg.color,
+                        borderColor: selectedOrg.color,
+                        opacity: (!formData.certified || isSubmitting) ? 0.6 : 1,
+                        cursor: (!formData.certified || isSubmitting) ? 'not-allowed' : 'pointer'
+                      }}
                     >
-                      Submit Registration
+                      {isSubmitting ? 'Submitting Registration…' : 'Submit Registration'}
                     </button>
                   )}
                 </div>
@@ -2067,6 +2088,28 @@ export default function StudentRegistrationView({ onBack }) {
             <p className="sreg-success-sub">
               Your student record has been received and queued for administrative review.
             </p>
+
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.25)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: 8,
+              padding: '12px 16px',
+              margin: '16px 0',
+              textAlign: 'left',
+              fontSize: '0.8rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4
+            }}>
+              <div><strong>Student:</strong> {previewFullName}</div>
+              <div><strong>Student Number:</strong> {formData.studentNumber}</div>
+              <div><strong>Program:</strong> {formData.course} ({formData.yearLevel} - {formData.section})</div>
+              {submissionResponse?.registration_id && (
+                <div style={{ color: '#F59E0B', marginTop: 4 }}>
+                  <strong>Reference ID:</strong> {submissionResponse.registration_id}
+                </div>
+              )}
+            </div>
 
             <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
               <button

@@ -8,6 +8,7 @@ import {
   Check,
   Users
 } from '@phosphor-icons/react';
+import { studentApi } from '../../services/api';
 import './RecycleBinView.css';
 
 // ── Sample soft-deleted records (placeholder — ready for backend) ────────────
@@ -53,21 +54,27 @@ export default function RecycleBinView() {
     r.program.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleRestore = (id) => {
+  const handleRestore = async (id) => {
+    try {
+      await studentApi.restore(id);
+    } catch (_) {}
     setRecords(prev => prev.filter(r => r.id !== id));
-    // TODO: call PATCH /api/admin/students/:id/restore
   };
 
-  const handlePurge = (id) => {
+  const handlePurge = async (id) => {
+    try {
+      await studentApi.purge(id);
+    } catch (_) {}
     setRecords(prev => prev.filter(r => r.id !== id));
     setPurgeTarget(null);
-    // TODO: call DELETE /api/admin/students/:id/purge
   };
 
-  const handleEmptyAll = () => {
+  const handleEmptyAll = async () => {
+    try {
+      await studentApi.emptyRecycleBin();
+    } catch (_) {}
     setRecords([]);
     setEmptyAll(false);
-    // TODO: call DELETE /api/admin/recycle-bin/empty
   };
 
   return (
