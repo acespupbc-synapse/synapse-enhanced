@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Globe,
   SlidersHorizontal,
@@ -14,7 +14,8 @@ import {
   LockKey,
   Plus,
   X,
-  FileArchive
+  FileArchive,
+  CaretDown
 } from '@phosphor-icons/react';
 import './SettingsView.css';
 
@@ -31,6 +32,20 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   const [showAddAYModal, setShowAddAYModal] = useState(false);
   const [newAYInput, setNewAYInput] = useState('');
   const [newAYError, setNewAYError] = useState('');
+
+  // Dropdowns
+  const [isAYDropdownOpen, setIsAYDropdownOpen] = useState(false);
+  const ayDropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (ayDropdownRef.current && !ayDropdownRef.current.contains(event.target)) {
+        setIsAYDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // ── Portal & Session Settings State ───────────────────────────────────────
   const [academicYears, setAcademicYears] = useState([
@@ -366,12 +381,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                       Control whether students can submit registrations through the public registration wizard.
                     </p>
                   </div>
-                  {portalConfig.isOpen && (
-                    <div className="status-pill online">
-                      <span className="pulse-dot" />
-                      <span>OPEN FOR SUBMISSIONS</span>
-                    </div>
-                  )}
+                  
                 </div>
 
                 <div className="settings-toggle-row">
@@ -395,32 +405,59 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
 
                 <div className="settings-grid-2">
                   <div className="settings-field">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <label className="settings-label" style={{ margin: 0 }}>
-                        Academic Year
-                      </label>
+                    <label className="settings-label">
+                      Academic Year
+                    </label>
+                    <div className="settings-custom-dropdown-wrap" ref={ayDropdownRef}>
                       <button
                         type="button"
-                        className="btn-link-action"
-                        onClick={() => {
-                          setNewAYInput('');
-                          setNewAYError('');
-                          setShowAddAYModal(true);
-                        }}
+                        className="settings-custom-dropdown-btn"
+                        onClick={() => setIsAYDropdownOpen(prev => !prev)}
+                        aria-expanded={isAYDropdownOpen}
                       >
-                        <Plus size={13} weight="bold" />
-                        <span>Add Academic Year</span>
+                        <span>{portalConfig.academicYear}</span>
+                        <CaretDown size={14} className={`dropdown-caret ${isAYDropdownOpen ? 'rotated' : ''}`} />
                       </button>
+
+                      {isAYDropdownOpen && (
+                        <div className="settings-custom-dropdown-menu">
+                          <div className="settings-dropdown-items-list">
+                            {academicYears.map(ay => (
+                              <button
+                                key={ay}
+                                type="button"
+                                className={`settings-dropdown-item ${portalConfig.academicYear === ay ? 'active' : ''}`}
+                                onClick={() => {
+                                  setPortalConfig(p => ({ ...p, academicYear: ay }));
+                                  setIsAYDropdownOpen(false);
+                                }}
+                              >
+                                <span>{ay}</span>
+                                {portalConfig.academicYear === ay && (
+                                  <CheckCircle size={14} weight="bold" color="#FFFFFF" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="settings-dropdown-divider" />
+
+                          <button
+                            type="button"
+                            className="settings-dropdown-add-btn"
+                            onClick={() => {
+                              setIsAYDropdownOpen(false);
+                              setNewAYInput('');
+                              setNewAYError('');
+                              setShowAddAYModal(true);
+                            }}
+                          >
+                            <Plus size={14} weight="bold" />
+                            <span>Add Another Academic Year</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <select
-                      className="settings-select"
-                      value={portalConfig.academicYear}
-                      onChange={e => setPortalConfig(p => ({ ...p, academicYear: e.target.value }))}
-                    >
-                      {academicYears.map(ay => (
-                        <option key={ay} value={ay}>{ay}</option>
-                      ))}
-                    </select>
                   </div>
 
                   <div className="settings-field">
@@ -458,7 +495,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                   <div className="settings-field">
                     <label className="settings-label">
                       Student ID Format Mask
-                      <span className="settings-label-hint">PUP Biñan Standard Pattern</span>
+                     
                     </label>
                     <input
                       type="text"

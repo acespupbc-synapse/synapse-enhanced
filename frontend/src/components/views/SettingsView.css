@@ -271,6 +271,145 @@
   cursor: pointer;
 }
 
+/* ── Custom Academic Year Dropdown ── */
+.settings-custom-dropdown-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.settings-custom-dropdown-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: rgba(12, 6, 6, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #FFFFFF;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.18s ease;
+}
+
+.settings-custom-dropdown-btn:hover {
+  background: rgba(22, 10, 10, 0.95);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.settings-custom-dropdown-btn:focus,
+.settings-custom-dropdown-btn[aria-expanded="true"] {
+  border-color: #7B0000;
+  box-shadow: 0 0 0 2px rgba(123, 0, 0, 0.35);
+}
+
+.settings-custom-dropdown-btn .dropdown-caret {
+  transition: transform 0.2s ease;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.settings-custom-dropdown-btn .dropdown-caret.rotated {
+  transform: rotate(180deg);
+}
+
+.settings-custom-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #140A0A;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.85), 0 0 20px rgba(123, 0, 0, 0.25);
+  z-index: 100;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  animation: settingsFadeIn 0.15s ease-out;
+}
+
+@keyframes settingsFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-dropdown-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.settings-dropdown-items-list::-webkit-scrollbar {
+  width: 4px;
+}
+.settings-dropdown-items-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.settings-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #E4E4E7;
+  font-size: 0.84rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+.settings-dropdown-item.active {
+  background: #7B0000;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.settings-dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 6px 0;
+}
+
+.settings-dropdown-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 6px;
+  background: rgba(123, 0, 0, 0.15);
+  border: 1px dashed rgba(224, 0, 0, 0.4);
+  color: #F87171;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-dropdown-add-btn:hover {
+  background: rgba(123, 0, 0, 0.28);
+  border-color: #E00000;
+  color: #FFFFFF;
+}
+
 .settings-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.06);
