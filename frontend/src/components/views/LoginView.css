@@ -55,8 +55,8 @@
   color: #FFFFFF;
 }
 
-.brand-amber {
-  color: #FFC107;
+.brand-red {
+  color: #E00000;
 }
 
 .subtitle {
@@ -75,26 +75,28 @@
   flex-wrap: wrap;
 }
 
-.btn-primary-amber {
-  background-color: #FFC107;
-  color: #18181B;
+.btn-primary-red {
+  background-color: #7B0000;
+  color: #FFFFFF;
   font-family: var(--font-sans);
   font-weight: 700;
   font-size: 0.95rem;
   padding: 14px 36px;
   border-radius: 100px;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   cursor: pointer;
-  transition: background-color 150ms ease, transform 150ms ease;
+  transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+  box-shadow: 0 4px 16px rgba(123, 0, 0, 0.4);
 }
 
-.btn-primary-amber:hover {
-  background-color: #FFD033;
+.btn-primary-red:hover {
+  background-color: #990000;
   transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(153, 0, 0, 0.5);
 }
 
-.btn-primary-amber:active {
-  background-color: #E6AC00;
+.btn-primary-red:active {
+  background-color: #660000;
   transform: translateY(0);
 }
 
@@ -266,7 +268,7 @@
     align-items: center;
   }
 
-  .btn-primary-amber,
+  .btn-primary-red,
   .btn-secondary-dark {
     width: 100%;
     max-width: 300px;
@@ -277,41 +279,35 @@
     gap: 10px;
     text-align: center;
   }
-
-  .footer-left {
-    align-items: center;
-  }
 }
 
-/* ── Admin Login Modal ────────────────────────────────────────────────────── */
+/* ── Admin Login Modal Dialog ────────────────────────────────────────────── */
 
-.login-modal-backdrop {
+.login-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 16px;
-  animation: fadeIn 0.2s ease-out;
+  padding: 20px;
+  animation: modalFadeIn 0.2s ease-out;
 }
 
-.login-modal-dialog {
-  position: relative;
-  background: #120A0A;
-  border: 1px solid rgba(245, 158, 11, 0.28);
+.login-modal-box {
+  background: #140A0A;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 32px 36px;
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(245, 158, 11, 0.1);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(123, 0, 0, 0.2);
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  color: #FFFFFF;
 }
 
 .login-modal-close {
@@ -320,19 +316,16 @@
   right: 18px;
   background: transparent;
   border: none;
-  color: #9CA3AF;
+  color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.18s;
+  transition: all 0.15s;
 }
 
 .login-modal-close:hover {
-  background: rgba(255, 255, 255, 0.08);
   color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .login-modal-header {
@@ -340,19 +333,19 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 6px;
+  margin-bottom: 22px;
 }
 
 .login-modal-icon {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: rgba(123, 0, 0, 0.2);
+  border: 1px solid rgba(123, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
 }
 
 .login-modal-title {
@@ -360,12 +353,14 @@
   font-weight: 700;
   color: #FFFFFF;
   letter-spacing: -0.01em;
+  margin-bottom: 4px;
 }
 
 .login-modal-subtitle {
-  font-size: 0.78rem;
-  color: #9CA3AF;
-  line-height: 1.4;
+  font-size: 0.82rem;
+  color: #A1A1AA;
+  line-height: 1.45;
+  margin: 0;
 }
 
 .login-modal-form {
@@ -378,12 +373,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  padding: 10px 14px;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.35);
   border-radius: 8px;
-  font-size: 0.78rem;
-  color: #EF4444;
+  padding: 10px 14px;
+  color: #F87171;
+  font-size: 0.82rem;
 }
 
 .login-modal-field {
@@ -425,8 +420,8 @@
 }
 
 .login-input-wrap input:focus {
-  border-color: #F59E0B;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+  border-color: #E00000;
+  box-shadow: 0 0 0 2px rgba(224, 0, 0, 0.25);
   background: rgba(10, 4, 4, 0.95);
 }
 

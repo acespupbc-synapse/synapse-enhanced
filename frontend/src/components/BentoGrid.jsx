@@ -10,6 +10,7 @@ import {
   Gear,
   IdentificationCard
 } from '@phosphor-icons/react';
+import { EditStudentModal } from './views/RegistrationsView';
 import './BentoGrid.css';
 
 // ── Utility: format time and date ──────────────────────────────────────────
@@ -34,9 +35,10 @@ function PersonAvatar({ size = 50 }) {
   );
 }
 
-export default function BentoGrid({ stats, onToggleRegistration }) {
+export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
   // ── Live Clock ────────────────────────────────────────────────────────────
   const [now, setNow] = useState(new Date());
+  const [editingStudent, setEditingStudent] = useState(null);
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000);
@@ -64,12 +66,37 @@ export default function BentoGrid({ stats, onToggleRegistration }) {
   ];
 
   const liveFeed = [
-    { name: 'John Benedict G. Hernandez', section: 'BSCPE 1-2 | 2022-00218-BN-0', time: '1 min ago' },
+    { name: 'John Benedict G. Hernandez', section: 'BSCpE 1-2 | 2022-00218-BN-0', time: '1 min ago' },
     { name: 'Maria Nicole T. Santos', section: 'BSIT 2-1 | 2023-00102-BN-0', time: '3 min ago' },
     { name: 'Christian G. Fernandez', section: 'BSBA-HRM 1-1 | 2024-00416-BN-0', time: '4 min ago' },
     { name: 'Rica Joy B. Dela Cruz', section: 'BSIE 3-1 | 2022-00055-BN-0', time: '5 min ago' },
     { name: 'Mark Andrei P. Reyes', section: 'DCpET 2-2 | 2023-00310-BN-0', time: '7 min ago' },
   ];
+
+  const handleOpenFeedStudent = (item, idx) => {
+    const parts = item.section.split('|').map((s) => s.trim());
+    const sec = parts[0] || 'BSIT 1-1';
+    const sNum = parts[1] || '2023-00102-BN-0';
+    const courseCode = sec.split(' ')[0] || 'BSIT';
+
+    setEditingStudent({
+      id: 'feed-' + (idx + 1),
+      name: item.name,
+      studentNumber: sNum,
+      course: courseCode,
+      program: courseCode,
+      section: sec,
+      yearLevel: '1st Year',
+      org: courseCode === 'BSCpE' || courseCode === 'DCpET' ? 'ACES' : (courseCode === 'BSIT' || courseCode === 'DIT' ? 'IBITS' : 'ACES'),
+      birthdate: '2004-05-15',
+      residentialAddress: 'Biñan, Laguna',
+      emergencyContactName: 'Guardian Contact',
+      emergencyContactNumber: '09171234567',
+      emergencyAddress: 'Biñan, Laguna',
+      photoUrl: null,
+      signatureUrl: null
+    });
+  };
 
   const programRegistrations = [
     {
@@ -172,18 +199,14 @@ export default function BentoGrid({ stats, onToggleRegistration }) {
           </div>
         </div>
 
-        {/* Registration Toggle Card */}
-        <div className="metric-card toggle-metric-card">
+        {/* Registration Status Indicator Card (Only toggleable in Settings) */}
+        <div className="metric-card toggle-metric-card" title="Registration status can only be modified in Settings">
           <span className="metric-label">Registration:</span>
           <div className="toggle-switch-container">
-            <button
-              className={`custom-toggle ${registrationOpen ? 'open' : 'closed'}`}
-              onClick={onToggleRegistration}
-              aria-label={registrationOpen ? 'Close registration' : 'Open registration'}
-            >
+            <div className={`custom-toggle-static ${registrationOpen ? 'open' : 'closed'}`}>
+              <span className="toggle-static-dot" />
               <span className="toggle-text">{registrationOpen ? 'OPEN' : 'CLOSED'}</span>
-              <div className="toggle-knob" />
-            </button>
+            </div>
           </div>
         </div>
       </div>
@@ -205,7 +228,11 @@ export default function BentoGrid({ stats, onToggleRegistration }) {
                 <span className="total-reg-num">{totalRegistered}</span>
               </div>
             </div>
-            <button className="recycle-bin-row action-btn-hover">
+            <button
+              className="recycle-bin-row action-btn-hover"
+              onClick={() => onNavigateTab && onNavigateTab('recycle')}
+              title="Open Recycle Bin"
+            >
               <div className="recycle-left">
                 <Trash size={14} weight="fill" />
                 <span>Recycle Bin:</span>
@@ -262,13 +289,27 @@ export default function BentoGrid({ stats, onToggleRegistration }) {
             <div className="feed-list-scroll">
               <div className="feed-list">
                 {liveFeed.map((item, idx) => (
-                  <div className="feed-item" key={idx}>
+                  <div
+                    className="feed-item"
+                    key={idx}
+                    onClick={() => handleOpenFeedStudent(item, idx)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <PersonAvatar size={48} />
                     <div className="feed-info">
                       <h4 className="feed-name">{item.name}</h4>
                       <p className="feed-section">{item.section}</p>
                       <p className="feed-time">Registered <strong>{item.time}</strong></p>
-                      <button className="btn-view-edit">View / Edit</button>
+                      <button
+                        className="btn-view-edit"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenFeedStudent(item, idx);
+                        }}
+                      >
+                        View / Edit
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -288,6 +329,8 @@ export default function BentoGrid({ stats, onToggleRegistration }) {
                     className="prog-banner-card action-btn-hover"
                     key={prog.code}
                     style={{ backgroundImage: `url(${prog.header})` }}
+                    onClick={() => onNavigateTab && onNavigateTab('registrations', prog.code)}
+                    title={`View ${prog.code} Registrations`}
                   >
                     <div className="prog-banner-overlay" />
                     <img src={prog.logo} alt={prog.code} className="prog-banner-logo" />
@@ -341,6 +384,21 @@ export default function BentoGrid({ stats, onToggleRegistration }) {
           <a href="#" className="dashboard-footer-link">Facebook</a>
         </div>
       </footer>
+
+      {/* Edit Student Record Modal when clicked from Live Feed */}
+      {editingStudent && (
+        <EditStudentModal
+          student={editingStudent}
+          onClose={() => setEditingStudent(null)}
+          onSave={(updated) => {
+            if (onShowToast) {
+              onShowToast(`Student record for ${updated.name} successfully updated!`);
+            }
+            setEditingStudent(null);
+          }}
+          onShowToast={onShowToast}
+        />
+      )}
     </main>
   );
 }

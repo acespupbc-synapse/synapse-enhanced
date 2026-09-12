@@ -65,7 +65,7 @@ export default function Sidebar({
         <div className="sidebar-brand-header">
           <img src="/img/orgs/aces.png" alt="ACES Logo" className="sidebar-brand-logo" />
           <h2 className="sidebar-brand-title">
-            <span className="brand-white">ACES</span> <span className="brand-amber">Synapse</span>
+            <span className="brand-white">ACES</span> <span className="brand-red">Synapse</span>
           </h2>
         </div>
 
@@ -84,7 +84,7 @@ export default function Sidebar({
                 <span className="nav-item-icon">
                   <Icon size={20} weight={isActive ? 'fill' : 'regular'} />
                 </span>
-                <span>{item.label}</span>
+                <span className="nav-item-label">{item.label}</span>
               </button>
             );
           })}
@@ -118,7 +118,7 @@ export default function Sidebar({
             <span className="nav-item-icon">
               <Gear size={20} weight={activeTab === 'settings' ? 'fill' : 'regular'} />
             </span>
-            <span>Settings</span>
+            <span className="nav-item-label">Settings</span>
           </button>
         </div>
       </aside>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, PencilSimple, Trash } from '@phosphor-icons/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, PencilSimple, Trash, CaretDown } from '@phosphor-icons/react';
 import { programsApi } from '../../services/api';
 import './ProgramsView.css';
 
@@ -139,8 +139,22 @@ function DeleteConfirmModal({ program, onClose, onConfirm }) {
 export default function ProgramsView() {
   const [programs, setPrograms]       = useState(INITIAL_PROGRAMS);
   const [filterOrg, setFilterOrg]     = useState('ALL');
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [editTarget, setEditTarget]   = useState(null);  // null | program | 'new'
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const filterRef = useRef(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     programsApi.getAll().then(data => {
@@ -191,14 +205,45 @@ export default function ProgramsView() {
         <div className="programs-toolbar">
           <div className="programs-toolbar-left">
             <span className="programs-filter-label">Filter by Org:</span>
-            <select
-              className="programs-filter-select"
-              value={filterOrg}
-              onChange={e => setFilterOrg(e.target.value)}
-            >
-              <option value="ALL">All Organizations</option>
-              {ORG_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <div className="programs-custom-dropdown-wrap" ref={filterRef}>
+              <button
+                type="button"
+                className="programs-custom-dropdown-btn"
+                onClick={() => setIsFilterDropdownOpen(prev => !prev)}
+                aria-expanded={isFilterDropdownOpen}
+              >
+                <span>{filterOrg === 'ALL' ? 'All Organizations' : filterOrg}</span>
+                <CaretDown size={13} className={`dropdown-caret ${isFilterDropdownOpen ? 'rotated' : ''}`} />
+              </button>
+
+              {isFilterDropdownOpen && (
+                <div className="programs-custom-dropdown-menu">
+                  <button
+                    type="button"
+                    className={`dropdown-item ${filterOrg === 'ALL' ? 'active' : ''}`}
+                    onClick={() => {
+                      setFilterOrg('ALL');
+                      setIsFilterDropdownOpen(false);
+                    }}
+                  >
+                    All Organizations
+                  </button>
+                  {ORG_OPTIONS.map(orgCode => (
+                    <button
+                      key={orgCode}
+                      type="button"
+                      className={`dropdown-item ${filterOrg === orgCode ? 'active' : ''}`}
+                      onClick={() => {
+                        setFilterOrg(orgCode);
+                        setIsFilterDropdownOpen(false);
+                      }}
+                    >
+                      {orgCode}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <button className="programs-add-btn" onClick={() => setEditTarget('new')}>

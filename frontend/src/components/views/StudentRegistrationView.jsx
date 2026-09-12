@@ -895,7 +895,7 @@ export default function StudentRegistrationView({ onBack }) {
       <header className="sreg-navbar" style={navDynamicStyle}>
         <img src="/img/pup_logo2.png" alt="PUP Logo" className="sreg-navbar-logo" />
         <div className="sreg-navbar-brand">
-          <span>ACES</span> <span className="brand-amber">Synapse</span>
+          <span>ACES</span> <span className="brand-red">Synapse</span>
         </div>
 
         <div className="sreg-navbar-actions">
@@ -2105,7 +2105,7 @@ export default function StudentRegistrationView({ onBack }) {
               <div><strong>Student Number:</strong> {formData.studentNumber}</div>
               <div><strong>Program:</strong> {formData.course} ({formData.yearLevel} - {formData.section})</div>
               {submissionResponse?.registration_id && (
-                <div style={{ color: '#F59E0B', marginTop: 4 }}>
+                <div style={{ color: '#E00000', marginTop: 4 }}>
                   <strong>Reference ID:</strong> {submissionResponse.registration_id}
                 </div>
               )}

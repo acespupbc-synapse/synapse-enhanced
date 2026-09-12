@@ -58,12 +58,19 @@
   white-space: nowrap;
 }
 
-.programs-filter-select {
+.programs-custom-dropdown-wrap {
+  position: relative;
+  min-width: 170px;
+}
+
+.programs-custom-dropdown-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  background: #140A0A;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 7px;
   padding: 8px 12px;
   color: #F4F4F5;
@@ -71,18 +78,63 @@
   font-family: var(--font-sans);
   cursor: pointer;
   outline: none;
-  transition: border-color 0.15s;
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 28px;
-  min-width: 170px;
+  transition: all 0.15s ease;
 }
 
-.programs-filter-select:focus {
-  border-color: rgba(255, 255, 255, 0.25);
+.programs-custom-dropdown-btn:hover {
+  background: #1c0f0f;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.programs-custom-dropdown-btn .dropdown-caret {
+  transition: transform 0.2s ease;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.programs-custom-dropdown-btn .dropdown-caret.rotated {
+  transform: rotate(180deg);
+}
+
+.programs-custom-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  min-width: 180px;
+  background: #140A0A;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 16px rgba(123, 0, 0, 0.25);
+  z-index: 100;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.programs-custom-dropdown-menu .dropdown-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #D4D4D8;
+  font-size: 0.82rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.programs-custom-dropdown-menu .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+.programs-custom-dropdown-menu .dropdown-item.active {
+  background: #7B0000;
+  color: #FFFFFF;
+  font-weight: 600;
 }
 
 .programs-add-btn {

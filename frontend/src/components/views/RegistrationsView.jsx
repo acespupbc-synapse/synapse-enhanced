@@ -10,12 +10,14 @@ import {
   Faders,
   Camera,
   Signature,
+  Crop,
   CaretDown,
   WarningCircle,
   CheckCircle,
   X
 } from '@phosphor-icons/react';
 import { studentApi } from '../../services/api';
+import { CameraModal, CropperModal, SignatureModal } from '../common/MediaModals';
 import './RegistrationsView.css';
 
 // ── Data ───────────────────────────────────────────────────────────────────
@@ -235,27 +237,69 @@ function AvatarPlaceholder({ size = 52, photoUrl }) {
 
 // ── Edit Student Modal ────────────────────────────────────────────────────
 
-function EditStudentModal({ student, onClose, onSave }) {
+export function EditStudentModal({ student, onClose, onSave, onShowToast }) {
   const orgs = ['ACES', 'HRSS', 'IBITS', 'PIIE', 'SMS', 'YES'];
   const programs = ['BSCpE', 'BSIT', 'BSBA-HRM', 'BSIE', 'BSPSY', 'BSED-ENG', 'BSED-SS', 'BEED', 'DCpET', 'DIT'];
   const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
   const sections = ['1-1', '1-2', '2-1', '2-2', '3-1', '4-1'];
-
-  const photoInputRef = useRef(null);
-  const sigInputRef = useRef(null);
 
   const [formOrg, setFormOrg] = useState(student.org || 'ACES');
   const [formProg, setFormProg] = useState(student.program || student.course || 'BSCpE');
   const [formYear, setFormYear] = useState(student.yearLevel || '1st Year');
   const [formSection, setFormSection] = useState(student.section?.replace(/^[A-Za-z-]+\s*/, '') || '1-2');
 
-  const [formFirstName, setFormFirstName] = useState(student.firstName || '');
-  const [formMiddleName, setFormMiddleName] = useState(student.middleName || '');
-  const [formLastName, setFormLastName] = useState(student.lastName || '');
+  const [formFirstName, setFormFirstName] = useState(() => {
+    if (student.firstName) return student.firstName;
+    if (student.name) {
+      if (student.name.includes(',')) {
+        return student.name.split(',')[1]?.trim().split(' ')[0] || '';
+      }
+      return student.name.split(' ')[0] || '';
+    }
+    return '';
+  });
+  const [formMiddleName, setFormMiddleName] = useState(() => {
+    if (student.middleName) return student.middleName;
+    if (student.name) {
+      const parts = student.name.replace(/,/g, '').trim().split(/\s+/);
+      if (parts.length > 2) return parts[parts.length - 1];
+    }
+    return '';
+  });
+  const [formLastName, setFormLastName] = useState(() => {
+    if (student.lastName) return student.lastName;
+    if (student.name) {
+      if (student.name.includes(',')) {
+        return student.name.split(',')[0]?.trim() || '';
+      }
+      const parts = student.name.trim().split(/\s+/);
+      return parts[parts.length - 1] || '';
+    }
+    return '';
+  });
   const [formStudentNumber, setFormStudentNumber] = useState(student.studentNumber || '');
   const [formEmail, setFormEmail] = useState(student.email || '');
-  const [formBirthdate, setFormBirthdate] = useState(student.birthdate || '2005-01-01');
   const [formAddress, setFormAddress] = useState(student.residentialAddress || '');
+
+  // Separate Month, Day, Year for Birthdate
+  const [dobMonth, setDobMonth] = useState(() => {
+    if (student.birthdate && student.birthdate.includes('-')) {
+      return student.birthdate.split('-')[1] || '01';
+    }
+    return '01';
+  });
+  const [dobDay, setDobDay] = useState(() => {
+    if (student.birthdate && student.birthdate.includes('-')) {
+      return student.birthdate.split('-')[2] || '01';
+    }
+    return '01';
+  });
+  const [dobYear, setDobYear] = useState(() => {
+    if (student.birthdate && student.birthdate.includes('-')) {
+      return student.birthdate.split('-')[0] || '2005';
+    }
+    return '2005';
+  });
 
   const [formContactName, setFormContactName] = useState(student.emergencyContactName || '');
   const [formContactNumber, setFormContactNumber] = useState(student.emergencyContactNumber || '');
@@ -264,25 +308,20 @@ function EditStudentModal({ student, onClose, onSave }) {
   const [photoUrl, setPhotoUrl] = useState(student.photoUrl || null);
   const [sigUrl, setSigUrl] = useState(student.signatureUrl || null);
 
-  const handlePhotoSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => setPhotoUrl(evt.target.result);
-      reader.readAsDataURL(file);
-    }
-  };
+  // Modal triggers for Camera, Crop, and Signature
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [isSigModalOpen, setIsSigModalOpen] = useState(false);
 
-  const handleSigSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => setSigUrl(evt.target.result);
-      reader.readAsDataURL(file);
-    }
-  };
+  // Save confirmation prompt state
+  const [isConfirmPromptOpen, setIsConfirmPromptOpen] = useState(false);
+  const [savedRecord, setSavedRecord] = useState(null);
+
+  // Calculate days in month
+  const daysInMonth = new Date(parseInt(dobYear, 10) || 2005, parseInt(dobMonth, 10) || 1, 0).getDate();
 
   const handleSave = () => {
+    const formattedDob = `${dobYear}-${String(dobMonth).padStart(2, '0')}-${String(dobDay).padStart(2, '0')}`;
     const updated = {
       ...student,
       org: formOrg,
@@ -296,7 +335,7 @@ function EditStudentModal({ student, onClose, onSave }) {
       name: `${formLastName.toUpperCase()}, ${formFirstName.toUpperCase()} ${formMiddleName ? formMiddleName.toUpperCase() : ''}`.trim(),
       studentNumber: formStudentNumber.toUpperCase(),
       email: formEmail,
-      birthdate: formBirthdate,
+      birthdate: formattedDob,
       residentialAddress: formAddress,
       emergencyContactName: formContactName,
       emergencyContactNumber: formContactNumber,
@@ -304,239 +343,308 @@ function EditStudentModal({ student, onClose, onSave }) {
       photoUrl,
       signatureUrl: sigUrl
     };
-    onSave(updated);
-    onClose();
+    setSavedRecord(updated);
+    setIsConfirmPromptOpen(true);
   };
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Student">
-      <div className="modal-box">
-        <div className="modal-header">
-          <PencilSimple size={22} weight="bold" />
-          <h2 className="modal-title">Edit Student Record</h2>
-        </div>
+    <>
+      <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Student">
+        <div className="modal-box">
+          <div className="modal-header">
+            <PencilSimple size={22} weight="bold" />
+            <h2 className="modal-title">Edit Student Record</h2>
+          </div>
 
-        <div className="modal-body">
-          {/* Left: Picture & Signature */}
-          <div className="modal-left">
-            <div>
-              <p className="modal-section-label">Picture</p>
-              <div className="modal-photo-box" style={{ overflow: 'hidden' }}>
-                {photoUrl ? (
-                  <img src={photoUrl} alt="Student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <Users size={48} weight="duotone" />
-                )}
+          <div className="modal-body">
+            {/* Left: Picture & Signature */}
+            <div className="modal-left">
+              <div>
+                <p className="modal-section-label">Picture</p>
+                <div className="modal-photo-box" style={{ overflow: 'hidden' }}>
+                  {photoUrl ? (
+                    <img src={photoUrl} alt="Student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <Users size={48} weight="duotone" />
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="modal-retake-btn"
+                    onClick={() => setIsCameraModalOpen(true)}
+                    title="Retake photo using webcam"
+                  >
+                    <Camera size={14} />
+                    Retake
+                  </button>
+                  <button
+                    type="button"
+                    className="modal-retake-btn"
+                    onClick={() => setIsCropModalOpen(true)}
+                    disabled={!photoUrl}
+                    title="Crop photo"
+                  >
+                    <Crop size={14} />
+                    Crop Photo
+                  </button>
+                </div>
               </div>
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/jpeg,image/png"
-                style={{ display: 'none' }}
-                onChange={handlePhotoSelect}
-              />
-              <button
-                type="button"
-                className="modal-retake-btn"
-                style={{ marginTop: 8 }}
-                onClick={() => photoInputRef.current?.click()}
-              >
-                <Camera size={14} />
-                {photoUrl ? 'Replace Photo' : 'Upload Photo'}
-              </button>
+
+              <div>
+                <p className="modal-section-label">Signature</p>
+                <div className="modal-sig-box" style={{ overflow: 'hidden' }}>
+                  {sigUrl ? (
+                    <img src={sigUrl} alt="Signature" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ fontFamily: 'cursive', fontSize: '1.4rem', color: '#666', padding: 8 }}>
+                      — No Signature —
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="modal-retake-btn"
+                  style={{ marginTop: 8 }}
+                  onClick={() => setIsSigModalOpen(true)}
+                  title="Draw or retake signature"
+                >
+                  <Signature size={14} />
+                  {sigUrl ? 'Retake Signature' : 'Sign Signature'}
+                </button>
+              </div>
             </div>
 
-            <div>
-              <p className="modal-section-label">Signature</p>
-              <div className="modal-sig-box" style={{ overflow: 'hidden' }}>
-                {sigUrl ? (
-                  <img src={sigUrl} alt="Signature" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <span style={{ fontFamily: 'cursive', fontSize: '1.4rem', color: '#666', padding: 8 }}>
-                    — No Signature —
-                  </span>
-                )}
+            {/* Right: Form fields */}
+            <div className="modal-right">
+              {/* Student Information */}
+              <div>
+                <p className="modal-info-section-title">Academic &amp; Personal Information</p>
+
+                {/* Row 1: dropdowns */}
+                <div className="modal-field-group cols-4" style={{ marginBottom: 14 }}>
+                  <div className="modal-field">
+                    <label>Organization</label>
+                    <select value={formOrg} onChange={e => setFormOrg(e.target.value)}>
+                      {orgs.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div className="modal-field">
+                    <label>Program</label>
+                    <select value={formProg} onChange={e => setFormProg(e.target.value)}>
+                      {programs.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div className="modal-field">
+                    <label>Year Level</label>
+                    <select value={formYear} onChange={e => setFormYear(e.target.value)}>
+                      {yearLevels.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                  <div className="modal-field">
+                    <label>Section</label>
+                    <select value={formSection} onChange={e => setFormSection(e.target.value)}>
+                      {sections.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 2: name fields */}
+                <div className="modal-field-group cols-3" style={{ marginBottom: 14 }}>
+                  <div className="modal-field">
+                    <label>First Name</label>
+                    <input
+                      type="text"
+                      value={formFirstName}
+                      onChange={e => setFormFirstName(e.target.value)}
+                      placeholder="Given name"
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Middle Name</label>
+                    <input
+                      type="text"
+                      value={formMiddleName}
+                      onChange={e => setFormMiddleName(e.target.value)}
+                      placeholder="Middle name"
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Last Name</label>
+                    <input
+                      type="text"
+                      value={formLastName}
+                      onChange={e => setFormLastName(e.target.value)}
+                      placeholder="Surname"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: ID, email, birthdate */}
+                <div className="modal-field-group cols-3" style={{ marginBottom: 14 }}>
+                  <div className="modal-field">
+                    <label>Student Number</label>
+                    <input
+                      type="text"
+                      value={formStudentNumber}
+                      onChange={e => setFormStudentNumber(e.target.value)}
+                      placeholder="202X-XXXXX-BN-0"
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Email Address</label>
+                    <input
+                      type="email"
+                      value={formEmail}
+                      onChange={e => setFormEmail(e.target.value)}
+                      placeholder="student@pup.edu.ph"
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Birthdate</label>
+                    <div className="modal-bday-grid">
+                      <select className="modal-bday-select" value={dobMonth} onChange={e => setDobMonth(e.target.value)}>
+                        {[
+                          { v: '01', l: 'Jan' }, { v: '02', l: 'Feb' }, { v: '03', l: 'Mar' },
+                          { v: '04', l: 'Apr' }, { v: '05', l: 'May' }, { v: '06', l: 'Jun' },
+                          { v: '07', l: 'Jul' }, { v: '08', l: 'Aug' }, { v: '09', l: 'Sep' },
+                          { v: '10', l: 'Oct' }, { v: '11', l: 'Nov' }, { v: '12', l: 'Dec' }
+                        ].map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+                      </select>
+                      <select className="modal-bday-select" value={dobDay} onChange={e => setDobDay(e.target.value)}>
+                        {Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                      <select className="modal-bday-select" value={dobYear} onChange={e => setDobYear(e.target.value)}>
+                        {Array.from({ length: 45 }, (_, i) => String(2015 - i)).map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 4: address */}
+                <div className="modal-field-group cols-1">
+                  <div className="modal-field">
+                    <label>Residential Address (Maps to PERMSTRT)</label>
+                    <input
+                      type="text"
+                      value={formAddress}
+                      onChange={e => setFormAddress(e.target.value)}
+                      placeholder="Full residential street, brgy, municipality"
+                    />
+                  </div>
+                </div>
               </div>
-              <input
-                ref={sigInputRef}
-                type="file"
-                accept="image/jpeg,image/png"
-                style={{ display: 'none' }}
-                onChange={handleSigSelect}
-              />
-              <button
-                type="button"
-                className="modal-retake-btn"
-                style={{ marginTop: 8 }}
-                onClick={() => sigInputRef.current?.click()}
-              >
-                <Signature size={14} />
-                {sigUrl ? 'Replace Signature' : 'Upload Signature'}
-              </button>
+
+              <div className="modal-divider" />
+
+              {/* Emergency Contact */}
+              <div>
+                <p className="modal-info-section-title">Emergency Contact Information</p>
+                <div className="modal-field-group cols-2" style={{ marginBottom: 14 }}>
+                  <div className="modal-field">
+                    <label>Contact Person (CTCTPRSN)</label>
+                    <input
+                      type="text"
+                      value={formContactName}
+                      onChange={e => setFormContactName(e.target.value)}
+                      placeholder="Guardian / Emergency contact name"
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Contact Number (CTCTNMBR)</label>
+                    <input
+                      type="tel"
+                      value={formContactNumber}
+                      onChange={e => setFormContactNumber(e.target.value)}
+                      placeholder="09XXXXXXXXX"
+                    />
+                  </div>
+                </div>
+                <div className="modal-field-group cols-1">
+                  <div className="modal-field">
+                    <label>Contact Address (CTCTSTRT)</label>
+                    <input
+                      type="text"
+                      value={formContactAddress}
+                      onChange={e => setFormContactAddress(e.target.value)}
+                      placeholder="Full guardian address"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Right: Form fields */}
-          <div className="modal-right">
-            {/* Student Information */}
-            <div>
-              <p className="modal-info-section-title">Academic &amp; Personal Information</p>
-
-              {/* Row 1: dropdowns */}
-              <div className="modal-field-group cols-4" style={{ marginBottom: 14 }}>
-                <div className="modal-field">
-                  <label>Organization</label>
-                  <select value={formOrg} onChange={e => setFormOrg(e.target.value)}>
-                    {orgs.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-                <div className="modal-field">
-                  <label>Program</label>
-                  <select value={formProg} onChange={e => setFormProg(e.target.value)}>
-                    {programs.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div className="modal-field">
-                  <label>Year Level</label>
-                  <select value={formYear} onChange={e => setFormYear(e.target.value)}>
-                    {yearLevels.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </div>
-                <div className="modal-field">
-                  <label>Section</label>
-                  <select value={formSection} onChange={e => setFormSection(e.target.value)}>
-                    {sections.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 2: name fields */}
-              <div className="modal-field-group cols-3" style={{ marginBottom: 14 }}>
-                <div className="modal-field">
-                  <label>First Name</label>
-                  <input
-                    type="text"
-                    value={formFirstName}
-                    onChange={e => setFormFirstName(e.target.value)}
-                    placeholder="Given name"
-                  />
-                </div>
-                <div className="modal-field">
-                  <label>Middle Name</label>
-                  <input
-                    type="text"
-                    value={formMiddleName}
-                    onChange={e => setFormMiddleName(e.target.value)}
-                    placeholder="Middle name"
-                  />
-                </div>
-                <div className="modal-field">
-                  <label>Last Name</label>
-                  <input
-                    type="text"
-                    value={formLastName}
-                    onChange={e => setFormLastName(e.target.value)}
-                    placeholder="Surname"
-                  />
-                </div>
-              </div>
-
-              {/* Row 3: ID, email, birthdate */}
-              <div className="modal-field-group cols-3" style={{ marginBottom: 14 }}>
-                <div className="modal-field">
-                  <label>Student Number</label>
-                  <input
-                    type="text"
-                    value={formStudentNumber}
-                    onChange={e => setFormStudentNumber(e.target.value)}
-                    placeholder="202X-XXXXX-BN-X"
-                  />
-                </div>
-                <div className="modal-field">
-                  <label>Email Address</label>
-                  <input
-                    type="email"
-                    value={formEmail}
-                    onChange={e => setFormEmail(e.target.value)}
-                    placeholder="student@pup.edu.ph"
-                  />
-                </div>
-                <div className="modal-field">
-                  <label>Birthdate</label>
-                  <input
-                    type="date"
-                    value={formBirthdate}
-                    onChange={e => setFormBirthdate(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Row 4: address */}
-              <div className="modal-field-group cols-1">
-                <div className="modal-field">
-                  <label>Residential Address (Maps to PERMSTRT)</label>
-                  <input
-                    type="text"
-                    value={formAddress}
-                    onChange={e => setFormAddress(e.target.value)}
-                    placeholder="Full residential street, brgy, municipality"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-divider" />
-
-            {/* Emergency Contact */}
-            <div>
-              <p className="modal-info-section-title">Emergency Contact Information (Separate Entity)</p>
-              <div className="modal-field-group cols-2" style={{ marginBottom: 14 }}>
-                <div className="modal-field">
-                  <label>Contact Person (CTCTPRSN)</label>
-                  <input
-                    type="text"
-                    value={formContactName}
-                    onChange={e => setFormContactName(e.target.value)}
-                    placeholder="Guardian / Emergency contact name"
-                  />
-                </div>
-                <div className="modal-field">
-                  <label>Contact Number (CTCTNMBR)</label>
-                  <input
-                    type="tel"
-                    value={formContactNumber}
-                    onChange={e => setFormContactNumber(e.target.value)}
-                    placeholder="09XXXXXXXXX"
-                  />
-                </div>
-              </div>
-              <div className="modal-field-group cols-1">
-                <div className="modal-field">
-                  <label>Contact Address (CTCTSTRT)</label>
-                  <input
-                    type="text"
-                    value={formContactAddress}
-                    onChange={e => setFormContactAddress(e.target.value)}
-                    placeholder="Full guardian address"
-                  />
-                </div>
-              </div>
-            </div>
+          <div className="modal-footer">
+            <button className="modal-btn-cancel" onClick={onClose}>Cancel</button>
+            <button className="modal-btn-save" onClick={handleSave}>Save Changes</button>
           </div>
-        </div>
 
-        <div className="modal-footer">
-          <button className="modal-btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="modal-btn-save" onClick={handleSave}>Save Changes</button>
+          {/* Confirmation Prompt Modal */}
+          {isConfirmPromptOpen && (
+            <div className="modal-prompt-backdrop">
+              <div className="modal-prompt-box">
+                <div className="modal-prompt-icon">
+                  <CheckCircle size={36} weight="fill" color="#10B981" />
+                </div>
+                <h3 className="modal-prompt-title">Changes Saved Successfully</h3>
+                <p className="modal-prompt-desc">
+                  Successfully changed and updated record for <strong>{savedRecord?.name}</strong>.
+                </p>
+                <div className="modal-prompt-actions">
+                  <button
+                    type="button"
+                    className="modal-prompt-ok-btn"
+                    onClick={() => {
+                      onSave(savedRecord);
+                      if (onShowToast) {
+                        onShowToast(`Student record for ${savedRecord?.name} successfully updated!`);
+                      }
+                      setIsConfirmPromptOpen(false);
+                      onClose();
+                    }}
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* Shared Camera Capture Modal */}
+      <CameraModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onCapture={(url) => setPhotoUrl(url)}
+      />
+
+      {/* Shared Cropper Modal */}
+      <CropperModal
+        isOpen={isCropModalOpen}
+        onClose={() => setIsCropModalOpen(false)}
+        imageSrc={photoUrl}
+        onApplyCrop={(url) => setPhotoUrl(url)}
+      />
+
+      {/* Shared Signature Drawing Modal */}
+      <SignatureModal
+        isOpen={isSigModalOpen}
+        onClose={() => setIsSigModalOpen(false)}
+        onApplySignature={(url) => setSigUrl(url)}
+      />
+    </>
   );
 }
 
 // ── Drilldown View ─────────────────────────────────────────────────────────
 
-function DrilldownView({ org, program, onBack }) {
+function DrilldownView({ org, program, onBack, onShowToast }) {
   const sections = buildSections(program.code);
   const yearLevels = Object.keys(sections);
   const firstSection = sections[yearLevels[0]]?.[0] ?? null;
@@ -548,16 +656,39 @@ function DrilldownView({ org, program, onBack }) {
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Sorting state
+  const [sortBy, setSortBy] = useState('name-asc');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+
+  const sortLabels = {
+    'name-asc': 'Name (A → Z)',
+    'name-desc': 'Name (Z → A)',
+    'num-asc': 'Student No. (Asc)',
+    'num-desc': 'Student No. (Desc)',
+    'recent': 'Recent First'
+  };
+
   const filtered = students.filter(s =>
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.studentNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+    if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+    if (sortBy === 'num-asc') return a.studentNumber.localeCompare(b.studentNumber);
+    if (sortBy === 'num-desc') return b.studentNumber.localeCompare(a.studentNumber);
+    return 0;
+  });
 
   const handleSaveStudent = async (updatedRecord) => {
     try {
       await studentApi.update(updatedRecord.id, updatedRecord);
     } catch (_) {}
     setStudents(prev => prev.map(s => s.id === updatedRecord.id ? updatedRecord : s));
+    if (onShowToast) {
+      onShowToast(`Student record for ${updatedRecord.name} successfully updated!`);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -569,6 +700,9 @@ function DrilldownView({ org, program, onBack }) {
     setStudents(prev => prev.filter(s => s.id !== studentToDelete.id));
     setIsDeleting(false);
     setStudentToDelete(null);
+    if (onShowToast) {
+      onShowToast(`Student record moved to Recycle Bin.`);
+    }
   };
 
   return (
@@ -629,7 +763,7 @@ function DrilldownView({ org, program, onBack }) {
 
           {/* Toolbar */}
           <div className="regs-toolbar">
-            <span className="regs-toolbar-title">Registrations ({filtered.length})</span>
+            <span className="regs-toolbar-title">Registrations ({sorted.length})</span>
             <div className="regs-search-box">
               <MagnifyingGlass size={15} weight="bold" color="rgba(255,255,255,0.3)" />
               <input
@@ -639,11 +773,39 @@ function DrilldownView({ org, program, onBack }) {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <button className="regs-sort-btn">
-              <SortAscending size={15} />
-              Sort by
-              <CaretDown size={11} />
-            </button>
+            
+            {/* Sort by custom dropdown */}
+            <div className="regs-sort-wrapper" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="regs-sort-btn"
+                onClick={() => setShowSortMenu(prev => !prev)}
+                aria-expanded={showSortMenu}
+              >
+                <SortAscending size={15} />
+                <span>Sort: {sortLabels[sortBy] || 'Name'}</span>
+                <CaretDown size={11} />
+              </button>
+
+              {showSortMenu && (
+                <div className="regs-sort-dropdown-menu">
+                  {Object.entries(sortLabels).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`regs-sort-menu-item ${sortBy === key ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortBy(key);
+                        setShowSortMenu(false);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button className="regs-filter-icon-btn" aria-label="Filter options">
               <Faders size={15} />
             </button>
@@ -651,35 +813,43 @@ function DrilldownView({ org, program, onBack }) {
 
           {/* Student list */}
           <div className="regs-student-list">
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
               <div style={{ padding: '36px 20px', textAlign: 'center', color: '#A1A1AA', fontSize: '0.85rem' }}>
-                No registered students match your search criteria.
+                No student registrations found matching your query.
               </div>
             ) : (
-              filtered.map(student => (
+              sorted.map(student => (
                 <div className="regs-student-row" key={student.id}>
-                  <AvatarPlaceholder size={52} photoUrl={student.photoUrl} />
-                  <div className="regs-student-info">
-                    <div className="regs-student-name">{student.name}</div>
-                    <div className="regs-student-meta">
-                      {student.studentNumber} · {activeSection?.sec ? `${program.code} ${activeSection.sec}` : student.section}
+                  <div className="regs-student-row-left">
+                    <AvatarPlaceholder size={48} photoUrl={student.photoUrl} />
+                    <div>
+                      <div className="regs-student-name">{student.name}</div>
+                      <div className="regs-student-meta">
+                        <span>{student.section}</span>
+                        <span className="regs-dot">·</span>
+                        <span>{student.studentNumber}</span>
+                      </div>
+                      <div className="regs-student-time">
+                        Registered <strong>{student.time || 'recently'}</strong>
+                      </div>
                     </div>
                   </div>
-                  <span className="regs-student-time">{student.time}</span>
-                  <div className="regs-student-actions">
+
+                  <div className="regs-row-actions">
                     <button
-                      className="regs-action-btn edit"
-                      aria-label="Edit student"
+                      className="regs-row-action-btn edit-btn"
                       onClick={() => setEditStudent(student)}
+                      title="Edit student record"
                     >
-                      <PencilSimple size={14} weight="bold" color="#FFFFFF" />
+                      <PencilSimple size={16} />
+                      <span>Edit</span>
                     </button>
                     <button
-                      className="regs-action-btn delete"
-                      aria-label="Delete student"
+                      className="regs-row-action-btn delete-btn"
                       onClick={() => setStudentToDelete(student)}
+                      title="Move to recycle bin"
                     >
-                      <Trash size={14} weight="fill" color="#FFFFFF" />
+                      <Trash size={16} />
                     </button>
                   </div>
                 </div>
@@ -705,12 +875,13 @@ function DrilldownView({ org, program, onBack }) {
         </div>
       </footer>
 
-      {/* Edit modal */}
+      {/* Edit Student Modal */}
       {editStudent && (
         <EditStudentModal
           student={editStudent}
           onClose={() => setEditStudent(null)}
           onSave={handleSaveStudent}
+          onShowToast={onShowToast}
         />
       )}
 
@@ -772,8 +943,18 @@ function DrilldownView({ org, program, onBack }) {
 
 // ── Top-level: Org Grid ────────────────────────────────────────────────────
 
-export default function RegistrationsView() {
-  const [drilldown, setDrilldown] = useState(null); // { org, program }
+export default function RegistrationsView({ initialProgramCode, onShowToast }) {
+  const [drilldown, setDrilldown] = useState(() => {
+    if (initialProgramCode) {
+      for (const org of ORGS) {
+        const found = org.programs.find(p => p.code === initialProgramCode);
+        if (found) {
+          return { org, program: found };
+        }
+      }
+    }
+    return null;
+  }); // { org, program }
 
   if (drilldown) {
     return (

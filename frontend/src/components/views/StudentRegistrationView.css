@@ -32,10 +32,10 @@
   --sreg-step-inactive-bg: #E2E8F0;
   --sreg-step-inactive-text: #475569;
   --sreg-step-line: #E2E8F0;
-  --sreg-cert-bg: #FFFBEB;
-  --sreg-cert-border: #FDE68A;
-  --sreg-cert-border-left: #F59E0B;
-  --sreg-cert-text: #92400E;
+  --sreg-cert-bg: #FEF2F2;
+  --sreg-cert-border: #FECACA;
+  --sreg-cert-border-left: #DC2626;
+  --sreg-cert-text: #991B1B;
   --sreg-cert-checked-bg: #F0FDF4;
   --sreg-cert-checked-border: #BBF7D0;
   --sreg-cert-checked-left: #16A34A;
@@ -68,10 +68,10 @@
   --sreg-step-inactive-bg: #27272A;
   --sreg-step-inactive-text: #A1A1AA;
   --sreg-step-line: rgba(255, 255, 255, 0.12);
-  --sreg-cert-bg: rgba(234, 179, 8, 0.08);
-  --sreg-cert-border: rgba(234, 179, 8, 0.2);
-  --sreg-cert-border-left: #F59E0B;
-  --sreg-cert-text: #FDE047;
+  --sreg-cert-bg: rgba(220, 38, 38, 0.08);
+  --sreg-cert-border: rgba(220, 38, 38, 0.25);
+  --sreg-cert-border-left: #DC2626;
+  --sreg-cert-text: #FCA5A5;
   --sreg-cert-checked-bg: rgba(21, 87, 36, 0.15);
   --sreg-cert-checked-border: rgba(21, 87, 36, 0.35);
   --sreg-cert-checked-left: #16A34A;
@@ -120,8 +120,8 @@
   gap: 6px;
 }
 
-.sreg-navbar-brand .brand-amber {
-  color: #FBBF24;
+.sreg-navbar-brand .brand-red {
+  color: #EF4444;
 }
 
 .sreg-navbar-actions {
@@ -680,13 +680,13 @@
 }
 
 .sreg-media-badge.req {
-  background-color: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #D97706;
+  background-color: rgba(224, 0, 0, 0.12);
+  border: 1px solid rgba(224, 0, 0, 0.3);
+  color: #EF4444;
 }
 
 .sreg-page.dark-theme .sreg-media-badge.req {
-  color: #FBBF24;
+  color: #F87171;
 }
 
 .sreg-media-card-body {

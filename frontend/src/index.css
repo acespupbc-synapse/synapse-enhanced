@@ -40,8 +40,8 @@
   --color-blue-light: #EFF6FF;
   --color-green: #10B981;
   --color-green-light: #ECFDF5;
-  --color-amber: #F59E0B;
-  --color-amber-light: #FFFBEB;
+  --color-amber: #E00000;
+  --color-amber-light: rgba(224, 0, 0, 0.12);
   --color-purple: #8B5CF6;
   --color-purple-light: #F5F3FF;
 
@@ -91,7 +91,7 @@
 
   --color-blue-light: rgba(37, 99, 235, 0.15);
   --color-green-light: rgba(16, 185, 129, 0.15);
-  --color-amber-light: rgba(245, 158, 11, 0.15);
+  --color-amber-light: rgba(224, 0, 0, 0.15);
   --color-purple-light: rgba(139, 92, 246, 0.15);
   --color-brand-light: rgba(239, 68, 68, 0.15);
 

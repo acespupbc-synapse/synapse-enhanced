@@ -38,7 +38,7 @@ export default function LoginView({ onLogin, onRegister }) {
       <div className="login-card">
         <div className="login-header">
           <h1>
-            <span className="brand-white">ACES</span> <span className="brand-amber">Synapse</span>
+            <span className="brand-white">ACES</span> <span className="brand-red">Synapse</span>
           </h1>
           <p className="subtitle">
             The Official Student ID Processing System of the Association of Computer
@@ -47,7 +47,7 @@ export default function LoginView({ onLogin, onRegister }) {
         </div>
 
         <div className="login-actions">
-          <button className="btn-primary-amber" onClick={onRegister}>
+          <button className="btn-primary-red" onClick={onRegister}>
             Student Registration
           </button>
           <button className="btn-secondary-dark" onClick={() => setShowAdminModal(true)}>
@@ -98,7 +98,7 @@ export default function LoginView({ onLogin, onRegister }) {
 
             <div className="login-modal-header">
               <div className="login-modal-icon">
-                <ShieldCheck size={28} weight="fill" color="#F59E0B" />
+                <ShieldCheck size={28} weight="fill" color="#E00000" />
               </div>
               <h2 className="login-modal-title">Admin Authentication</h2>
               <p className="login-modal-subtitle">
@@ -152,7 +152,7 @@ export default function LoginView({ onLogin, onRegister }) {
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary-amber"
+                  className="btn-primary-red"
                   style={{ padding: '10px 24px', fontSize: '0.85rem' }}
                   disabled={isLoading}
                 >

@@ -9,6 +9,7 @@ import RecycleBinView from './components/views/RecycleBinView';
 import SettingsView from './components/views/SettingsView';
 import LoginView from './components/views/LoginView';
 import StudentRegistrationView from './components/views/StudentRegistrationView';
+import RegistrationClosedView from './components/views/RegistrationClosedView';
 import { statsApi, settingsApi, exportApi } from './services/api';
 import './index.css';
 
@@ -16,6 +17,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedProgramFilter, setSelectedProgramFilter] = useState(null);
   const [isDark, setIsDark] = useState(true);
   const [isOpenMobile, setIsOpenMobile] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -68,8 +70,8 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleToggleRegistration = async () => {
-    const nextState = !stats.isRegistrationOpen;
+  const handleToggleRegistration = async (explicitState) => {
+    const nextState = explicitState !== undefined ? explicitState : !stats.isRegistrationOpen;
     showToast(nextState ? 'Registration is now OPEN' : 'Registration is now CLOSED');
     try {
       await settingsApi.toggleRegistration(nextState);
@@ -151,11 +153,33 @@ export default function App() {
     showToast('CardFive MDB CSV downloaded successfully!');
   };
 
+  const handleExitRegistration = () => {
+    setIsRegistering(false);
+    setIsAuthenticated(false); // Cleanly return to the home/login page
+  };
+
+  const handleNavigateTab = (tab, programCode) => {
+    if (programCode) {
+      setSelectedProgramFilter(programCode);
+    } else {
+      setSelectedProgramFilter(null);
+    }
+    setActiveTab(tab);
+  };
+
   // Public student registration portal view
   if (isRegistering) {
+    if (!stats.isRegistrationOpen) {
+      return (
+        <RegistrationClosedView
+          academicYear={stats.ayName}
+          onBack={handleExitRegistration}
+        />
+      );
+    }
     return (
       <StudentRegistrationView
-        onBack={() => setIsRegistering(false)}
+        onBack={handleExitRegistration}
       />
     );
   }
@@ -181,7 +205,10 @@ export default function App() {
       {/* Sidebar with Profile & Server Status */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(id) => {
+          setSelectedProgramFilter(null);
+          setActiveTab(id);
+        }}
         isDark={isDark}
         toggleTheme={toggleTheme}
         stats={stats}
@@ -196,11 +223,16 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <BentoGrid
             stats={stats}
-            onToggleRegistration={handleToggleRegistration}
-            onExportCsv={handleExportCsv}
+            onNavigateTab={handleNavigateTab}
+            onShowToast={showToast}
           />
         )}
-        {activeTab === 'registrations' && <RegistrationsView />}
+        {activeTab === 'registrations' && (
+          <RegistrationsView
+            initialProgramCode={selectedProgramFilter}
+            onShowToast={showToast}
+          />
+        )}
 
         {activeTab === 'programs' && <ProgramsView />}
         {activeTab === 'export' && <ExportView onExportCsv={handleExportCsv} />}

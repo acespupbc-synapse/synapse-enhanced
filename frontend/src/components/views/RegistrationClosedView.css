@@ -1,0 +1,254 @@
+/* ==========================================================================
+   Registration Closed View — Matches Reference 1 (No yellow, Red/Black/Gray)
+   ========================================================================== */
+
+.reg-closed-page {
+  position: relative;
+  width: 100vw;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #060102;
+  font-family: var(--font-sans);
+  color: #FFFFFF;
+  overflow-x: hidden;
+  padding: 24px;
+}
+
+/* Ambient glow spots */
+.reg-closed-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(140px);
+  opacity: 0.28;
+}
+
+.reg-closed-glow.top-left {
+  top: -150px;
+  left: -150px;
+  background: radial-gradient(circle, #7B0000 0%, rgba(123, 0, 0, 0) 70%);
+}
+
+.reg-closed-glow.bottom-right {
+  bottom: -150px;
+  right: -150px;
+  background: radial-gradient(circle, #990000 0%, rgba(153, 0, 0, 0) 70%);
+}
+
+.reg-closed-grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+/* Centered Card */
+.reg-closed-card {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 620px;
+  background: rgba(18, 10, 10, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 48px 40px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 40px rgba(123, 0, 0, 0.15);
+}
+
+/* ACES Logo with glow */
+.reg-closed-logo-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.reg-closed-logo-glow {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(220, 38, 38, 0.4) 0%, transparent 70%);
+  filter: blur(12px);
+}
+
+.reg-closed-logo {
+  position: relative;
+  width: 64px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 12px rgba(220, 38, 38, 0.3));
+}
+
+/* Typography */
+.reg-closed-title {
+  font-size: 2.25rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #FFFFFF;
+  margin: 0 0 10px;
+  line-height: 1.15;
+}
+
+.reg-closed-subtitle {
+  font-size: 1.05rem;
+  color: #A1A1AA;
+  margin: 0 0 32px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Help Box (Red border-left, dark background) */
+.reg-closed-help-box {
+  width: 100%;
+  background: rgba(25, 14, 14, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 4px solid #DC2626;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  text-align: left;
+  margin-bottom: 32px;
+}
+
+.reg-closed-help-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.reg-closed-help-content {
+  flex: 1;
+}
+
+.reg-closed-help-tag {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #EF4444;
+  margin-bottom: 4px;
+}
+
+.reg-closed-help-desc {
+  font-size: 0.85rem;
+  color: #D4D4D8;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Action Buttons */
+.reg-closed-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.reg-closed-btn-primary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-radius: 9999px;
+  background-color: #8B0000;
+  color: #FFFFFF;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 16px rgba(139, 0, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.reg-closed-btn-primary:hover {
+  background-color: #A30000;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(163, 0, 0, 0.5);
+}
+
+.reg-closed-btn-primary:active {
+  transform: translateY(0);
+  background-color: #700000;
+}
+
+.reg-closed-btn-secondary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #FFFFFF;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: all 0.2s ease;
+}
+
+.reg-closed-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.reg-closed-btn-secondary:active {
+  transform: translateY(0);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Return to Home link */
+.reg-closed-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: #71717A;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.reg-closed-back-btn:hover {
+  color: #FFFFFF;
+}
+
+@media (max-width: 640px) {
+  .reg-closed-card {
+    padding: 36px 20px 24px;
+  }
+  .reg-closed-title {
+    font-size: 1.75rem;
+  }
+  .reg-closed-actions {
+    flex-direction: column;
+  }
+  .reg-closed-btn-primary,
+  .reg-closed-btn-secondary {
+    width: 100%;
+  }
+}

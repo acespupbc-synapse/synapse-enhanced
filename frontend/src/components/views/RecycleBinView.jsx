@@ -262,7 +262,7 @@ export default function RecycleBinView() {
         <div className="prog-modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm empty recycle bin">
           <div className="prog-modal-box" style={{ maxWidth: 440 }}>
             <div className="prog-modal-header">
-              <Warning size={20} weight="fill" color="#F59E0B" />
+              <Warning size={20} weight="fill" color="#EF4444" />
               <h2 className="prog-modal-title">Empty Recycle Bin?</h2>
             </div>
             <p style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, marginBottom: 4 }}>

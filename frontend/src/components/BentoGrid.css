@@ -155,6 +155,46 @@
 
 /* ── Registration Toggle ─────────────────────────────────────────────────── */
 
+.custom-toggle-static {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.custom-toggle-static.open {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.custom-toggle-static.closed {
+  background: rgba(220, 38, 38, 0.15);
+  color: #F87171;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+}
+
+.toggle-static-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.custom-toggle-static.open .toggle-static-dot {
+  background-color: #34D399;
+  box-shadow: 0 0 8px #34D399;
+}
+
+.custom-toggle-static.closed .toggle-static-dot {
+  background-color: #F87171;
+  box-shadow: 0 0 8px #F87171;
+}
+
 .custom-toggle {
   display: flex;
   align-items: center;
