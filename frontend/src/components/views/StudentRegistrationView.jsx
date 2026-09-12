@@ -555,6 +555,7 @@ export default function StudentRegistrationView({ onBack }) {
   const handleApplyCrop = () => {
     if (!cropImageSrc) return;
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => {
       // Export to exact 1500 x 1500 px ID standard
       const outCanvas = document.createElement('canvas');
@@ -564,29 +565,32 @@ export default function StudentRegistrationView({ onBack }) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      // Clean white background
+      // Clean white background (for edge padding if rotated)
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, 1500, 1500);
+
+      const natW = img.naturalWidth || img.width;
+      const natH = img.naturalHeight || img.height;
+
+      // Cover 1500 × 1500 px canvas (object-fit: cover - fills entire square with no empty space)
+      const baseScale = Math.max(1500 / natW, 1500 / natH);
+      const drawW = natW * baseScale;
+      const drawH = natH * baseScale;
+
+      // Scale factor from preview frame (320px viewport) to export (1500px)
+      const scaleToExport = 1500 / 320;
 
       ctx.save();
       // Center transform at 750, 750
       ctx.translate(750, 750);
-      ctx.rotate((cropRotation * Math.PI) / 180);
-
-      // Scale factor from preview frame (340px) to export (1500px)
-      const scaleToExport = 1500 / 340;
       ctx.translate(cropOffset.x * scaleToExport, cropOffset.y * scaleToExport);
+      ctx.rotate((cropRotation * Math.PI) / 180);
       ctx.scale(cropZoom, cropZoom);
-
-      const maxSide = Math.max(img.width, img.height);
-      const fitScale = 1500 / maxSide;
-      const drawW = img.width * fitScale;
-      const drawH = img.height * fitScale;
 
       ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
       ctx.restore();
 
-      const croppedResult = outCanvas.toDataURL('image/jpeg', 0.92);
+      const croppedResult = outCanvas.toDataURL('image/jpeg', 0.95);
       setFormData((prev) => ({
         ...prev,
         photoUrl: croppedResult,

@@ -277,20 +277,25 @@ export function CropperModal({ isOpen, onClose, imageSrc, onApplyCrop }) {
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, 1500, 1500);
 
+      const natW = img.naturalWidth || img.width;
+      const natH = img.naturalHeight || img.height;
+
+      const baseScale = Math.max(1500 / natW, 1500 / natH);
+      const drawWidth = natW * baseScale;
+      const drawHeight = natH * baseScale;
+
+      const scaleRatio = 1500 / 320; // 320 is viewport width
+
       ctx.save();
       ctx.translate(750, 750);
+      ctx.translate(cropOffset.x * scaleRatio, cropOffset.y * scaleRatio);
       ctx.rotate((cropRotation * Math.PI) / 180);
+      ctx.scale(cropZoom, cropZoom);
 
-      const baseScale = Math.max(1500 / img.naturalWidth, 1500 / img.naturalHeight);
-      const totalScale = baseScale * cropZoom;
-      const drawWidth = img.naturalWidth * totalScale;
-      const drawHeight = img.naturalHeight * totalScale;
-
-      const scaleRatio = 1500 / 360; // 360 is viewport width
       ctx.drawImage(
         img,
-        -drawWidth / 2 + cropOffset.x * scaleRatio,
-        -drawHeight / 2 + cropOffset.y * scaleRatio,
+        -drawWidth / 2,
+        -drawHeight / 2,
         drawWidth,
         drawHeight
       );

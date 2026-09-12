@@ -702,6 +702,7 @@
 .sreg-photo-compact-frame {
   width: 130px;
   height: 130px;
+  aspect-ratio: 1 / 1;
   background-color: #F8FAFC;
   border: 1.5px dashed var(--sreg-input-border);
   border-radius: 8px;
@@ -720,6 +721,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
   border-radius: 6px;
 }
 
@@ -1923,6 +1925,7 @@
   transform: translateX(-50%);
   width: 166px;
   height: 166px;
+  aspect-ratio: 1 / 1;
   background-color: #EEEEEE;
   border: 1px solid #DDDDDD;
   overflow: hidden;
@@ -1932,6 +1935,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .sreg-id-name-group {
