@@ -5,7 +5,7 @@ import './LoginView.css';
 
 export default function LoginView({ onLogin, onRegister }) {
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -28,7 +28,7 @@ export default function LoginView({ onLogin, onRegister }) {
       }
     } catch (err) {
       setIsLoading(false);
-      setErrorMsg(err.message || 'Authentication failed. Check credentials.');
+      setErrorMsg(err.message || 'Invalid username or password.');
     }
   };
 

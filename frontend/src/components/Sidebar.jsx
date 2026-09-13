@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   House,
   Users,
@@ -8,31 +9,41 @@ import {
   UserPlus,
   SignOut,
   List,
-  X
+  X,
+  FileCsv
 } from '@phosphor-icons/react';
 import './Sidebar.css';
 
 export default function Sidebar({
-  activeTab,
-  setActiveTab,
   isOpenMobile,
   setIsOpenMobile,
   onLogout,
   onOpenRegistration
 }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const navItems = [
-    { id: 'dashboard',     label: 'Dashboard',        icon: House },
-    { id: 'registrations', label: 'Registrations',    icon: Users },
-    { id: 'programs',      label: 'Academic Programs', icon: GraduationCap },
-    { id: 'recycle',       label: 'Recycle Bin',       icon: Trash },
+    { id: 'dashboard',     path: '/dashboard',     label: 'Dashboard',         icon: House },
+    { id: 'registrations', path: '/registrations', label: 'Registrations',     icon: Users },
+    { id: 'programs',      path: '/programs',      label: 'Academic Programs', icon: GraduationCap },
+    { id: 'recycle',       path: '/recycle-bin',   label: 'Recycle Bin',       icon: Trash },
+    { id: 'export',        path: '/export',        label: 'MDB Export',        icon: FileCsv },
   ];
 
-  const handleNavClick = (id) => {
-    setActiveTab(id);
+  const handleNavClick = (path) => {
+    navigate(path);
     if (setIsOpenMobile) {
       setIsOpenMobile(false);
     }
   };
+
+  const isItemActive = (item) => {
+    if (item.path === '/dashboard') return location.pathname === '/dashboard';
+    return location.pathname.startsWith(item.path);
+  };
+
+  const isSettingsActive = location.pathname.startsWith('/settings');
 
   return (
     <>
@@ -73,12 +84,12 @@ export default function Sidebar({
         <nav className="sidebar-nav" aria-label="Main Navigation">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = isItemActive(item);
             return (
               <button
                 key={item.id}
                 className={`nav-item ${isActive ? 'active' : ''}`}
-                onClick={() => handleNavClick(item.id)}
+                onClick={() => handleNavClick(item.path)}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <span className="nav-item-icon">
@@ -94,14 +105,14 @@ export default function Sidebar({
         <div className="sidebar-actions">
           <button
             className="btn-sidebar-primary"
-            onClick={onOpenRegistration}
+            onClick={onOpenRegistration || (() => navigate('/register'))}
             title="Open Student Registration Portal"
           >
             <UserPlus size={20} />
             <span>Student Registration</span>
           </button>
           
-          <button className="btn-sidebar-danger" onClick={onLogout}>
+          <button className="btn-sidebar-danger" onClick={onLogout || (() => { localStorage.removeItem('synapse_auth_token'); navigate('/login'); })}>
             <SignOut size={20} />
             <span>Logout</span>
           </button>
@@ -112,11 +123,11 @@ export default function Sidebar({
         {/* Settings Footer */}
         <div className="sidebar-footer">
           <button
-            className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => handleNavClick('settings')}
+            className={`nav-item ${isSettingsActive ? 'active' : ''}`}
+            onClick={() => handleNavClick('/settings')}
           >
             <span className="nav-item-icon">
-              <Gear size={20} weight={activeTab === 'settings' ? 'fill' : 'regular'} />
+              <Gear size={20} weight={isSettingsActive ? 'fill' : 'regular'} />
             </span>
             <span className="nav-item-label">Settings</span>
           </button>

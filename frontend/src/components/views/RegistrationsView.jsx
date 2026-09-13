@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   MagnifyingGlass,
   Users,
@@ -14,9 +15,12 @@ import {
   WarningCircle,
   CheckCircle,
   X,
-  GraduationCap
+  GraduationCap,
+  FileCsv,
+  FileText,
+  FilePdf,
 } from '@phosphor-icons/react';
-import { studentApi, statsApi } from '../../services/api';
+import { studentApi, statsApi, exportApi } from '../../services/api';
 import { CameraModal, CropperModal, SignatureModal } from '../common/MediaModals';
 import './RegistrationsView.css';
 
@@ -595,6 +599,33 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
     'oldest': 'Oldest First'
   };
 
+  const handleSectionExport = async (format) => {
+    const secParam = activeSection?.sec !== 'All' ? activeSection.sec : undefined;
+    const filter = { program: program.code, section: secParam };
+    const label = secParam ? `${program.code} (${secParam})` : program.code;
+
+    if (onShowToast) {
+      onShowToast(`Generating ${format.toUpperCase()} export for ${label}...`);
+    }
+
+    try {
+      let ok = false;
+      if (format === 'csv') ok = await exportApi.downloadCsv(filter);
+      else if (format === 'xlsx') ok = await exportApi.downloadXlsx(filter);
+      else if (format === 'pdf') ok = await exportApi.downloadPdf(filter);
+
+      if (ok && onShowToast) {
+        onShowToast(`${format.toUpperCase()} export downloaded for ${label}.`);
+      } else if (!ok && onShowToast) {
+        onShowToast(`No records found or export failed for ${label}.`);
+      }
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(`Export error: ${err.message}`);
+      }
+    }
+  };
+
   const filtered = students.filter(s => {
     const matchesSearch =
       (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -629,50 +660,55 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
     } catch (_) {}
     setStudents(prev => prev.map(s => s.id === updatedRecord.id ? updatedRecord : s));
     if (onShowToast) {
-      onShowToast(`Student record for ${updatedRecord.name} successfully updated!`);
+      onShowToast(`Student record for ${updatedRecord.name} updated successfully.`);
     }
+    setEditStudent(null);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleDeleteConfirm = async () => {
     if (!studentToDelete) return;
     setIsDeleting(true);
     try {
       await studentApi.softDelete(studentToDelete.id);
+      setStudents(prev => prev.filter(s => s.id !== studentToDelete.id));
+      if (onShowToast) {
+        onShowToast(`Student ${studentToDelete.name} moved to Recycle Bin.`);
+      }
     } catch (_) {}
-    setStudents(prev => prev.filter(s => s.id !== studentToDelete.id));
     setIsDeleting(false);
     setStudentToDelete(null);
-    if (onShowToast) {
-      onShowToast(`Student record moved to Recycle Bin.`);
-    }
   };
 
   return (
-    <div className="regs-drilldown">
-      {/* Breadcrumb title */}
-      <h1 className="regs-drilldown-title">
+    <div className="regs-drilldown-page">
+      {/* Top breadcrumb navigation */}
+      <div className="regs-drilldown-header">
         <button
+          type="button"
+          className="regs-back-btn"
           onClick={onBack}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '2rem', fontWeight: 700, padding: 0, verticalAlign: 'baseline' }}
-          aria-label="Back to registrations"
+          title="Back to Organizations"
         >
-          Registrations
+          <CaretLeft size={16} weight="bold" />
+          <span>Organizations</span>
         </button>
-        {' '}
-        <span>/ {org.code} - {program.code}</span>
-      </h1>
+        <span className="regs-drilldown-sep">/</span>
+        <span className="regs-drilldown-org">{org?.code || 'PUPBC'}</span>
+        <span className="regs-drilldown-sep">/</span>
+        <h2 className="regs-drilldown-title">
+          {program.code} <span>— {program.name}</span>
+        </h2>
+      </div>
 
       <div className="regs-drilldown-body">
-        {/* Left: Navigation Panel */}
-        <nav className="regs-nav-panel" aria-label="Section navigation">
-          <div className="regs-nav-panel-title">Navigation Panel</div>
+        {/* Left: Section navigation */}
+        <nav className="regs-nav-panel" aria-label="Section Navigation">
+          <div className="regs-nav-panel-title">Sections</div>
 
-          {/* All Sections */}
+          {/* All sections button */}
           <button
-            type="button"
             className={`regs-section-btn ${activeSection?.sec === 'All' ? 'active' : ''}`}
             onClick={() => setActiveSection({ sec: 'All', count: students.length })}
-            style={{ marginBottom: 10 }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Folder size={14} weight="fill" />
@@ -712,17 +748,23 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
           {/* Panel header — program info with dynamic org header */}
           <div
             className="regs-student-panel-header"
-            style={{ backgroundImage: `url(${org.header})` }}
+            style={{ backgroundImage: org?.header ? `url(${org.header})` : 'none' }}
           >
             <div className="regs-panel-header-left">
-              <GraduationCap size={36} weight="fill" color="#FFFFFF" style={{ flexShrink: 0 }} />
+              <GraduationCap size={40} weight="fill" color="#FFFFFF" style={{ flexShrink: 0 }} />
               <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span className="regs-program-code-pill">{program.code}</span>
+                  <span className="regs-program-org-pill">{org?.code || 'PUPBC'}</span>
+                </div>
                 <div className="regs-panel-program-name">{program.name}</div>
-                <div className="regs-panel-section-label">Section: {activeSection?.sec === 'All' ? 'All Sections' : (activeSection?.sec ?? 'All Sections')}</div>
+                <div className="regs-panel-section-label">
+                  Section: <strong>{activeSection?.sec === 'All' ? 'All Sections' : activeSection?.sec}</strong> ({sorted.length} enrolled)
+                </div>
               </div>
             </div>
             <div className="regs-panel-header-right">
-              <img src={org.logo} alt={org.code} className="regs-panel-header-logo-badge" />
+              {org?.logo && <img src={org.logo} alt={org.code} className="regs-panel-header-logo-badge" />}
             </div>
           </div>
 
@@ -769,6 +811,37 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Section Export Action Buttons */}
+            <div className="regs-export-group">
+              <button
+                type="button"
+                className="btn-regs-export btn-export-csv"
+                title={`Export ${activeSection?.sec !== 'All' ? activeSection?.sec : 'All'} as CardFive MDB CSV`}
+                onClick={() => handleSectionExport('csv')}
+              >
+                <FileCsv size={15} weight="bold" />
+                <span>MDB CSV</span>
+              </button>
+              <button
+                type="button"
+                className="btn-regs-export btn-export-xlsx"
+                title={`Export ${activeSection?.sec !== 'All' ? activeSection?.sec : 'All'} as Excel XLSX`}
+                onClick={() => handleSectionExport('xlsx')}
+              >
+                <FileText size={15} weight="bold" />
+                <span>Excel</span>
+              </button>
+              <button
+                type="button"
+                className="btn-regs-export btn-export-pdf"
+                title={`Export ${activeSection?.sec !== 'All' ? activeSection?.sec : 'All'} as PDF Report`}
+                onClick={() => handleSectionExport('pdf')}
+              >
+                <FilePdf size={15} weight="bold" />
+                <span>PDF</span>
+              </button>
             </div>
           </div>
 
@@ -902,6 +975,8 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
 }
 
 export default function RegistrationsView({ initialProgramCode, onShowToast, stats }) {
+  const navigate = useNavigate();
+  const params = useParams();
   const [liveStats, setLiveStats] = useState(stats || null);
 
   useEffect(() => {
@@ -920,38 +995,40 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
     }))
   }));
 
-  const [drilldown, setDrilldown] = useState(() => {
-    if (initialProgramCode) {
-      for (const org of dynamicOrgs) {
-        const found = org.programs.find(p => p.code === initialProgramCode);
-        if (found) {
-          return { org, program: found };
-        }
-      }
-    }
-    return null;
-  }); // { org, program }
+  const targetProgramCode = params.programCode || initialProgramCode;
+  const targetOrgCode = params.orgCode;
 
-  useEffect(() => {
-    if (initialProgramCode) {
+  let drilldown = null;
+  if (targetProgramCode) {
+    const codeUpper = targetProgramCode.toUpperCase();
+    for (const org of dynamicOrgs) {
+      if (targetOrgCode && org.code.toUpperCase() !== targetOrgCode.toUpperCase()) {
+        continue;
+      }
+      const found = org.programs.find(p => p.code.toUpperCase() === codeUpper);
+      if (found) {
+        drilldown = { org, program: found };
+        break;
+      }
+    }
+    if (!drilldown) {
       for (const org of dynamicOrgs) {
-        const found = org.programs.find(p => p.code === initialProgramCode);
+        const found = org.programs.find(p => p.code.toUpperCase() === codeUpper);
         if (found) {
-          setDrilldown({ org, program: found });
-          return;
+          drilldown = { org, program: found };
+          break;
         }
       }
-    } else {
-      setDrilldown(null);
     }
-  }, [initialProgramCode]);
+  }
 
   if (drilldown) {
     return (
       <DrilldownView
         org={drilldown.org}
         program={drilldown.program}
-        onBack={() => setDrilldown(null)}
+        onBack={() => navigate('/registrations')}
+        onShowToast={onShowToast}
       />
     );
   }
@@ -968,7 +1045,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
             <div
               className="org-card"
               key={org.code}
-              onClick={() => setDrilldown({ org, program: org.programs[0] })}
+              onClick={() => navigate(`/registrations/${org.code}/${org.programs[0]?.code || 'ALL'}`)}
             >
               {/* Org Header Banner */}
               <div
@@ -994,7 +1071,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
                     className="org-prog-row"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setDrilldown({ org, program: prog });
+                      navigate(`/registrations/${org.code}/${prog.code}`);
                     }}
                   >
                     <div className="org-prog-row-left">

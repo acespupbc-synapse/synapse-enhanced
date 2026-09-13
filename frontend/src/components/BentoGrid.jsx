@@ -98,10 +98,10 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
     }).catch(() => {});
   }, [stats?.enrolledCount]);
 
-  const cpu = '23%';
-  const apiHealth = '43 ms';
+  const cpu = stats?.cpuPercent != null ? `${stats.cpuPercent}%` : '0%';
+  const apiHealth = stats?.latencyMs != null ? `${stats.latencyMs} ms` : '—';
   const liveUsers = '1';
-  const academicYear = stats?.ayName?.replace('AY ', '') ?? '2025-2026';
+  const academicYear = stats?.ayName?.replace(/^AY\s*/i, '') ?? '2026-2027';
   const registrationOpen = stats?.isRegistrationOpen ?? true;
 
   const totalRegistered = stats?.enrolledCount ?? 0;
@@ -274,19 +274,10 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
         {/* Registration Status Indicator Card (Only toggleable in Settings) */}
         <div className="metric-card toggle-metric-card" title="Registration status can only be modified in Settings">
           <span className="metric-label">Registration:</span>
-          <div className="toggle-switch-container">
-            <div className={`dashboard-toggle-pill ${registrationOpen ? 'open' : 'closed'}`}>
-              {registrationOpen ? (
-                <>
-                  <span className="toggle-pill-text">OPEN</span>
-                  <span className="toggle-pill-knob" />
-                </>
-              ) : (
-                <>
-                  <span className="toggle-pill-knob" />
-                  <span className="toggle-pill-text">CLOSED</span>
-                </>
-              )}
+          <div className="status-badge-container">
+            <div className={`dashboard-status-badge ${registrationOpen ? 'open' : 'closed'}`}>
+              <span className="status-dot" />
+              <span className="status-badge-text">{registrationOpen ? 'REGISTRATION OPEN' : 'REGISTRATION CLOSED'}</span>
             </div>
           </div>
         </div>
@@ -356,13 +347,13 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
                 <Gear size={18} weight="fill" className="supa-gear" />
               </div>
               <div className="supa-stats">
-                <span className="supa-percent">{capacity.percentage || 0}%</span>
+                <span className="supa-percent">{Number(capacity.percentage || 0).toFixed(2)}%</span>
                 <div className="supa-bar-discrete">
                   {[...Array(20)].map((_, i) => (
                     <div key={i} className={`discrete-line ${i < Math.max(1, Math.round(((capacity.percentage || 0.2) / 100) * 20)) ? 'active' : ''}`} />
                   ))}
                 </div>
-                <span className="supa-volume">{capacity.storageUsedMb || 4.5} MB / {capacity.storageMaxMb || 500} MB</span>
+                <span className="supa-volume">{Number(capacity.storageUsedMb || 0).toFixed(2)} MB / {capacity.storageMaxMb || 500} MB</span>
               </div>
             </div>
           </div>
@@ -514,6 +505,23 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
               onShowToast(`Student record for ${updated.name} successfully updated!`);
             }
             setEditingStudent(null);
+            statsApi.getLiveFeed().then((data) => {
+              if (Array.isArray(data)) {
+                setLiveFeed(
+                  data.map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    course: item.course,
+                    section: `${item.course || ''} ${item.section || ''}`.trim() || '—',
+                    studentNumber: item.student_number || '',
+                    photoUrl: item.photo_url || null,
+                    time: item.time
+                      ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : 'Recently',
+                  }))
+                );
+              }
+            }).catch(() => {});
           }}
           onShowToast={onShowToast}
         />

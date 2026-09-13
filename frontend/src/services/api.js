@@ -16,8 +16,8 @@ const API_BASE_URL = RAW_API_URL
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('synapse_auth_token');
   const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    ...(options.responseType === 'blob' ? { 'Accept': '*/*' } : { 'Accept': 'application/json' }),
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...options.headers,
   };
@@ -99,19 +99,25 @@ export const authApi = {
 // ── System & Dashboard Stats Service ────────────────────────────────────────
 export const statsApi = {
   async getDashboardStats() {
+    const t0 = performance.now();
     try {
-      return await request('/admin/stats');
+      const data = await request('/admin/stats');
+      const latencyMs = Math.max(1, Math.round(performance.now() - t0));
+      return { ...data, latencyMs };
     } catch (_) {
+      const latencyMs = Math.max(1, Math.round(performance.now() - t0));
       return {
         isRegistrationOpen: true,
         enrolledCount: 0,
         dbStatus: 'Online',
-        activeAcademicYear: 'AY 2025-2026',
+        activeAcademicYear: 'AY 2026-2027',
         capacityPct: 0,
         programsCount: 0,
         pendingReviewCount: 0,
         recycleBinCount: 0,
-        programCounts: {}
+        programCounts: {},
+        cpuPercent: 0,
+        latencyMs,
       };
     }
   },
@@ -305,6 +311,14 @@ export const settingsApi = {
     }
   },
 
+  async getDiagnostics() {
+    try {
+      return await request('/admin/settings/diagnostics');
+    } catch (_) {
+      return null;
+    }
+  },
+
   async updateSettings(settings) {
     try {
       return await request('/admin/settings', {
@@ -341,18 +355,66 @@ export const exportApi = {
   async downloadCsv(filters = {}) {
     const query = new URLSearchParams(filters).toString();
     try {
-      const blob = await request(`/admin/exports/csv?${query}`, { responseType: 'blob' });
+      const blob = await request(`/admin/exports/csv${query ? `?${query}` : ''}`, {
+        responseType: 'blob',
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `CardFive_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+      const tag = filters.program ? (filters.section ? `_${filters.program}_${filters.section}` : `_${filters.program}`) : '';
+      a.download = `CardFive_Export${tag}_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       return true;
     } catch (err) {
-      console.warn('[exportApi.downloadCsv] Using client fallback generator:', err.message);
-      return false; // Tells caller to use client generator fallback
+      console.warn('[exportApi.downloadCsv] Failed:', err.message);
+      return false;
+    }
+  },
+
+  async downloadXlsx(filters = {}) {
+    const query = new URLSearchParams(filters).toString();
+    try {
+      const blob = await request(`/admin/exports/xlsx${query ? `?${query}` : ''}`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const tag = filters.program ? (filters.section ? `_${filters.program}_${filters.section}` : `_${filters.program}`) : '';
+      a.download = `ACES_Synapse_Export${tag}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return true;
+    } catch (err) {
+      console.warn('[exportApi.downloadXlsx] Failed:', err.message);
+      return false;
+    }
+  },
+
+  async downloadPdf(filters = {}) {
+    const query = new URLSearchParams(filters).toString();
+    try {
+      const blob = await request(`/admin/exports/pdf${query ? `?${query}` : ''}`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const tag = filters.program ? (filters.section ? `_${filters.program}_${filters.section}` : `_${filters.program}`) : '';
+      a.download = `ACES_Synapse_Report${tag}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return true;
+    } catch (err) {
+      console.warn('[exportApi.downloadPdf] Failed:', err.message);
+      return false;
     }
   }
 };

@@ -8,23 +8,30 @@ GET /api/admin/exports/pdf     — PDF student list
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_admin
 from app.models.admin_user import AdminUser
+from app.models.config import Course, Section
 from app.models.student import Student
 from app.schemas.export import transform_student_to_mdb_csv
 
 router = APIRouter(prefix="/api/admin/exports", tags=["exports"])
 
 
-async def _get_active_students(db: AsyncSession):
-    result = await db.execute(
+async def _get_active_students(
+    db: AsyncSession,
+    program: Optional[str] = None,
+    section: Optional[str] = None,
+):
+    query = (
         select(Student)
         .options(
             selectinload(Student.course),
@@ -32,8 +39,14 @@ async def _get_active_students(db: AsyncSession):
             selectinload(Student.academic_year),
         )
         .where(Student.deleted_at.is_(None))
-        .order_by(Student.last_name, Student.first_name)
     )
+    if program:
+        query = query.join(Student.course).where(func.upper(Course.code) == program.strip().upper())
+    if section:
+        query = query.join(Student.section).where(func.upper(Section.name) == section.strip().upper())
+
+    query = query.order_by(Student.last_name, Student.first_name)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -41,10 +54,12 @@ async def _get_active_students(db: AsyncSession):
 
 @router.get("/csv")
 async def export_csv(
+    program: Optional[str] = Query(None),
+    section: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
-    students = await _get_active_students(db)
+    students = await _get_active_students(db, program=program, section=section)
 
     headers = [
         "STUDNO", "LASTNAME", "GENDER", "MDLENAME", "BRTHPLCE", "ADMSYEAR",
@@ -64,10 +79,17 @@ async def export_csv(
             continue
 
     date_str = datetime.now().strftime("%Y-%m-%d")
+    tag = ""
+    if program and section:
+        tag = f"_{program}_{section}"
+    elif program:
+        tag = f"_{program}"
+    filename = f"CardFive_MDB_Export{tag}_{date_str}.csv"
+
     return Response(
         content="\n".join(rows),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=CardFive_MDB_Export_{date_str}.csv"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -75,17 +97,19 @@ async def export_csv(
 
 @router.get("/xlsx")
 async def export_xlsx(
+    program: Optional[str] = Query(None),
+    section: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
 
-    students = await _get_active_students(db)
+    students = await _get_active_students(db, program=program, section=section)
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Student Registrations"
+    ws.title = f"{program or 'All'}_{section or 'Students'}"[:31]
 
     col_headers = [
         "Student No.", "Last Name", "First Name", "Middle Name", "Gender",
@@ -134,10 +158,17 @@ async def export_xlsx(
     buffer.seek(0)
 
     date_str = datetime.now().strftime("%Y-%m-%d")
+    tag = ""
+    if program and section:
+        tag = f"_{program}_{section}"
+    elif program:
+        tag = f"_{program}"
+    filename = f"ACES_Synapse_Export{tag}_{date_str}.xlsx"
+
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=ACES_Synapse_Export_{date_str}.xlsx"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -145,6 +176,8 @@ async def export_xlsx(
 
 @router.get("/pdf")
 async def export_pdf(
+    program: Optional[str] = Query(None),
+    section: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
@@ -160,7 +193,7 @@ async def export_pdf(
         Spacer,
     )
 
-    students = await _get_active_students(db)
+    students = await _get_active_students(db, program=program, section=section)
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -175,9 +208,15 @@ async def export_pdf(
     styles = getSampleStyleSheet()
     elements = []
 
+    subtitle = ""
+    if program and section:
+        subtitle = f" — {program} ({section})"
+    elif program:
+        subtitle = f" — {program}"
+
     # Title
     title = Paragraph(
-        "<font size='14'><b>ACES Synapse — Student Registration Report</b></font>",
+        f"<font size='14'><b>ACES Synapse — Student Registration Report{subtitle}</b></font>",
         styles["Normal"],
     )
     elements.append(title)
@@ -230,8 +269,15 @@ async def export_pdf(
     doc.build(elements)
     buffer.seek(0)
 
+    tag = ""
+    if program and section:
+        tag = f"_{program}_{section}"
+    elif program:
+        tag = f"_{program}"
+    filename = f"ACES_Synapse_Report{tag}_{date_str}.pdf"
+
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=ACES_Synapse_Report_{date_str}.pdf"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

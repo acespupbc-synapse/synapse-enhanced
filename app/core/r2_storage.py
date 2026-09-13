@@ -103,7 +103,8 @@ def get_presigned_url(object_key: str, expiry: int = PRESIGNED_EXPIRY) -> Option
             ExpiresIn=expiry,
         )
         return url
-    except ClientError:
+    except Exception as exc:
+        print(f"[WARN] Failed to generate presigned URL for {object_key}: {exc}")
         return None
 
 

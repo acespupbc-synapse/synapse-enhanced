@@ -17,7 +17,7 @@ import {
   FileArchive,
   CaretDown
 } from '@phosphor-icons/react';
-import { studentApi } from '../../services/api';
+import { studentApi, settingsApi, authApi } from '../../services/api';
 import './SettingsView.css';
 
 export default function SettingsView({ stats, onToggleRegistration, onShowToast }) {
@@ -58,7 +58,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
 
   const [portalConfig, setPortalConfig] = useState({
     isOpen: stats?.isRegistrationOpen ?? true,
-    academicYear: stats?.ayName?.replace(/^AY\s*/i, '') || '2025-2026',
+    academicYear: stats?.ayName?.replace(/^AY\s*/i, '') || '2026-2027',
     allowedYearLevels: '1st Year Only'
   });
 
@@ -91,25 +91,52 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
 
   // ── System Diagnostics State ──────────────────────────────────────────────
   const rawApiUrl = (import.meta.env.VITE_API_URL || 'https://synapse-enhanced.onrender.com').replace(/\/+$/, '');
-  const [systemMetrics] = useState({
+  const [systemMetrics, setSystemMetrics] = useState({
     dbEngine: 'PostgreSQL (Supabase Pooler) + SQLAlchemy 2.0 (Canonical Schema)',
     dbFile: 'PostgreSQL aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres',
     alembicRevision: '001_canonical_postgresql_schema',
     apiEndpoint: `${rawApiUrl}/api`,
     apiStatus: 'Healthy (Online)',
     activeSessions: 1,
-    storageUsed: `${stats?.storageUsedMb || 4.5} MB / 500 MB`
+    storageUsed: `${stats?.storageUsedMb || 0} MB / 500 MB`
   });
 
+  useEffect(() => {
+    settingsApi.getDiagnostics().then(diag => {
+      if (diag) {
+        setSystemMetrics(prev => ({
+          ...prev,
+          dbEngine: diag.dbEngine || diag.db_engine || prev.dbEngine,
+          dbFile: diag.dbHost || diag.db_host || prev.dbFile,
+          alembicRevision: diag.alembicRevision || diag.alembic_revision || prev.alembicRevision,
+          apiStatus: diag.apiStatus || (diag.status === 'ok' ? 'Healthy (Online)' : prev.apiStatus),
+          storageUsed: diag.storage_used_mb ? `${diag.storage_used_mb} MB / 500 MB` : prev.storageUsed
+        }));
+      }
+    }).catch(() => {});
+  }, []);
+
   // Handle saving configurations
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await settingsApi.updateSettings({
+        active_ay: portalConfig.academicYear,
+        is_registration_open: portalConfig.isOpen,
+        allowed_year_levels: portalConfig.allowedYearLevels,
+        require_photo: ruleConfig.requirePhotoUpload,
+        admin_email: securityConfig.adminEmail,
+      });
       if (onShowToast) {
         onShowToast('Settings configuration saved successfully.');
       }
-    }, 500);
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(`Failed to save settings: ${err.message}`);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Open the registration toggle auth modal
@@ -120,14 +147,16 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   };
 
   // Confirm portal toggle with password
-  const handleConfirmTogglePortal = (e) => {
+  const handleConfirmTogglePortal = async (e) => {
     e.preventDefault();
     if (!authPasswordInput.trim()) {
       setAuthPasswordError('Administrator password is required.');
       return;
     }
-    // Accept standard admin password
-    if (authPasswordInput !== 'admin123' && authPasswordInput !== 'admin') {
+
+    try {
+      await authApi.login(securityConfig.adminUsername || 'admin', authPasswordInput);
+    } catch (_) {
       setAuthPasswordError('Incorrect admin password.');
       return;
     }
@@ -171,7 +200,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   };
 
   // Handle password update
-  const handleChangePassword = (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     setPasswordError('');
 
@@ -188,15 +217,19 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
       return;
     }
 
-    setSecurityConfig(prev => ({
-      ...prev,
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    }));
-
-    if (onShowToast) {
-      onShowToast('Admin password updated successfully.');
+    try {
+      await authApi.changePassword(securityConfig.currentPassword, securityConfig.newPassword);
+      setSecurityConfig(prev => ({
+        ...prev,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      }));
+      if (onShowToast) {
+        onShowToast('Admin password updated successfully.');
+      }
+    } catch (err) {
+      setPasswordError(err.message || 'Failed to update admin password.');
     }
   };
 
