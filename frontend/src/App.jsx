@@ -40,6 +40,8 @@ export default function App() {
         enrolledCount: data.enrolledCount ?? prev.enrolledCount,
         dbStatus: data.dbStatus ?? prev.dbStatus,
         ayName: data.activeAcademicYear ?? prev.ayName,
+        recycleBinCount: data.recycleBinCount ?? 0,
+        programCounts: data.programCounts ?? {},
       }));
     } catch (_) {
       // Backend not available — keep default values silently

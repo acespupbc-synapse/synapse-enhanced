@@ -51,12 +51,30 @@ async def get_stats(
     )
     pending_count = pending.scalar_one() or 0
 
+    # Recycle bin count
+    recycled = await db.execute(
+        select(func.count(Student.id)).where(Student.deleted_at.is_not(None))
+    )
+    recycle_count = recycled.scalar_one() or 0
+
+    # Program breakdown
+    from app.models.config import Course
+    prog_res = await db.execute(
+        select(Course.code, func.count(Student.id))
+        .join(Student, Student.course_id == Course.id)
+        .where(Student.deleted_at.is_(None))
+        .group_by(Course.code)
+    )
+    prog_counts = {row[0]: row[1] for row in prog_res.all()}
+
     return {
         "isRegistrationOpen": registration_open,
         "enrolledCount": enrolled_count,
         "activeAcademicYear": active_ay_name,
         "dbStatus": "Online",
         "pendingReviewCount": pending_count,
+        "recycleBinCount": recycle_count,
+        "programCounts": prog_counts,
     }
 
 
@@ -70,11 +88,14 @@ async def get_capacity(
     )
     used = enrolled.scalar_one() or 0
     max_records = 500
+    storage_mb = round(4.5 + (used * 0.05), 1)
 
     return {
         "usedRecords": used,
         "maxRecords": max_records,
         "percentage": round((used / max_records) * 100, 1),
+        "storageUsedMb": storage_mb,
+        "storageMaxMb": 500,
     }
 
 

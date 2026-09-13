@@ -43,15 +43,36 @@ function relativeTime(date) {
 }
 
 export default function RecycleBinView() {
-  const [records, setRecords] = useState(INITIAL_DELETED);
+  const [records, setRecords] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [purgeTarget, setPurgeTarget] = useState(null);
   const [emptyAll, setEmptyAll] = useState(false);
 
+  React.useEffect(() => {
+    setIsLoading(true);
+    studentApi.getAll({ deleted: true })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRecords(data.map(s => ({
+            id: s.id,
+            name: `${s.last_name}, ${s.first_name} ${s.middle_name || ''}`.trim(),
+            studentNumber: s.student_number,
+            program: s.course_code || '',
+            section: s.section_name || '',
+            org: s.organization || 'ACES',
+            deletedAt: s.deleted_at ? new Date(s.deleted_at) : new Date(),
+          })));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
   const filtered = records.filter(r =>
-    r.name.toLowerCase().includes(search.toLowerCase()) ||
-    r.studentNumber.toLowerCase().includes(search.toLowerCase()) ||
-    r.program.toLowerCase().includes(search.toLowerCase())
+    (r.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (r.studentNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+    (r.program || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const handleRestore = async (id) => {

@@ -651,10 +651,47 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
 
   const [activeSection, setActiveSection] = useState(firstSection);
   const [searchTerm, setSearchTerm] = useState('');
-  const [students, setStudents] = useState(INITIAL_STUDENTS);
+  const [students, setStudents] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [editStudent, setEditStudent] = useState(null);
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    setIsLoading(true);
+    studentApi.getAll({ program: program.code })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const mapped = data.map((s) => ({
+            id: s.id,
+            name: `${s.last_name}, ${s.first_name} ${s.middle_name || ''}`.trim(),
+            firstName: s.first_name,
+            middleName: s.middle_name || '',
+            lastName: s.last_name,
+            studentNumber: s.student_number,
+            email: s.email,
+            course: s.course_code || program.code,
+            program: s.course_code || program.code,
+            yearLevel: s.year_level ? `${s.year_level}${s.year_level === 1 ? 'st' : s.year_level === 2 ? 'nd' : s.year_level === 3 ? 'rd' : 'th'} Year` : '1st Year',
+            section: s.section_name || '1-1',
+            org: s.organization || org?.code || 'ACES',
+            gender: s.gender || 'Male',
+            birthdate: s.birth_date || '',
+            residentialAddress: s.perm_strt || '',
+            emergencyContactName: s.contact_person_name || '',
+            emergencyContactNumber: s.contact_person_number || '',
+            emergencyAddress: s.perm_strt || '',
+            photoUrl: s.photo_url || null,
+            signatureUrl: s.signature_url || null,
+            status: s.status || 'PENDING',
+            time: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recently'
+          }));
+          setStudents(mapped);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, [program.code, org?.code]);
 
   // Sorting state (strictly 4 options)
   const [sortBy, setSortBy] = useState('name-asc');
@@ -668,8 +705,8 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
   };
 
   const filtered = students.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.studentNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.studentNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const sorted = [...filtered].sort((a, b) => {

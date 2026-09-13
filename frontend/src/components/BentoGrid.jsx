@@ -11,6 +11,7 @@ import {
   IdentificationCard
 } from '@phosphor-icons/react';
 import { EditStudentModal } from './views/RegistrationsView';
+import { statsApi } from '../services/api';
 import './BentoGrid.css';
 
 // ── Utility: format time and date ──────────────────────────────────────────
@@ -48,39 +49,64 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
   const time = formatTime(now);
   const date = formatDate(now);
 
-  // ── Dashboard Data (realistic placeholders ready for backend) ─────────────
+  // ── Dashboard Data (Live from Backend / Supabase) ────────────────────────
+  const [liveFeed, setLiveFeed] = useState([]);
+  const [capacity, setCapacity] = useState({
+    usedRecords: stats?.enrolledCount || 0,
+    maxRecords: 500,
+    percentage: 0,
+    storageUsedMb: 4.5,
+    storageMaxMb: 500,
+  });
+
+  useEffect(() => {
+    statsApi.getLiveFeed().then((data) => {
+      if (Array.isArray(data)) {
+        setLiveFeed(
+          data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            course: item.course,
+            section: `${item.course || ''} ${item.section || ''}`.trim() || '—',
+            studentNumber: item.student_number || '',
+            time: item.time
+              ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : 'Recently',
+          }))
+        );
+      }
+    }).catch(() => {});
+
+    statsApi.getCapacityMetrics().then((data) => {
+      if (data) setCapacity(data);
+    }).catch(() => {});
+  }, [stats?.enrolledCount]);
+
   const cpu = '23%';
   const apiHealth = '43 ms';
-  const liveUsers = '10';
-  const academicYear = stats?.ayName?.replace('AY ', '') ?? '2026-2027';
+  const liveUsers = '1';
+  const academicYear = stats?.ayName?.replace('AY ', '') ?? '2025-2026';
   const registrationOpen = stats?.isRegistrationOpen ?? true;
 
-  const totalRegistered = stats?.enrolledCount ?? 307;
-  const recycleBinCount = '02';
+  const totalRegistered = stats?.enrolledCount ?? 0;
+  const recycleBinCount = String(stats?.recycleBinCount ?? 0).padStart(2, '0');
 
-  const topPrograms = [
-    { name: 'BSBA-HRM', count: 123, max: 150 },
-    { name: 'BSIT', count: 87, max: 150 },
-    { name: 'BSCpE', count: 78, max: 150 },
-    { name: 'BSIE', count: 70, max: 150 },
-  ];
-
-  const liveFeed = [
-    { name: 'John Benedict G. Hernandez', section: 'BSCpE 1-2 | 2022-00218-BN-0', time: '1 min ago' },
-    { name: 'Maria Nicole T. Santos', section: 'BSIT 2-1 | 2023-00102-BN-0', time: '3 min ago' },
-    { name: 'Christian G. Fernandez', section: 'BSBA-HRM 1-1 | 2024-00416-BN-0', time: '4 min ago' },
-    { name: 'Rica Joy B. Dela Cruz', section: 'BSIE 3-1 | 2022-00055-BN-0', time: '5 min ago' },
-    { name: 'Mark Andrei P. Reyes', section: 'DCpET 2-2 | 2023-00310-BN-0', time: '7 min ago' },
-  ];
+  const progCounts = stats?.programCounts || {};
+  const topPrograms = Object.entries(progCounts).length > 0
+    ? Object.entries(progCounts)
+        .map(([name, count]) => ({ name, count, max: Math.max(10, count * 2) }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 4)
+    : [];
 
   const handleOpenFeedStudent = (item, idx) => {
-    const parts = item.section.split('|').map((s) => s.trim());
-    const sec = parts[0] || 'BSIT 1-1';
-    const sNum = parts[1] || '2023-00102-BN-0';
-    const courseCode = sec.split(' ')[0] || 'BSIT';
+    const parts = (item.section || '').split('|').map((s) => s.trim());
+    const sec = parts[0] || '1-1';
+    const sNum = item.studentNumber || (parts[1] || '');
+    const courseCode = item.course || sec.split(' ')[0] || 'BSIT';
 
     setEditingStudent({
-      id: 'feed-' + (idx + 1),
+      id: item.id || 'feed-' + (idx + 1),
       name: item.name,
       studentNumber: sNum,
       course: courseCode,
@@ -89,10 +115,10 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       yearLevel: '1st Year',
       org: courseCode === 'BSCpE' || courseCode === 'DCpET' ? 'ACES' : (courseCode === 'BSIT' || courseCode === 'DIT' ? 'IBITS' : 'ACES'),
       birthdate: '2004-05-15',
-      residentialAddress: 'Biñan, Laguna',
-      emergencyContactName: 'Guardian Contact',
-      emergencyContactNumber: '09171234567',
-      emergencyAddress: 'Biñan, Laguna',
+      residentialAddress: '',
+      emergencyContactName: '',
+      emergencyContactNumber: '',
+      emergencyAddress: '',
       photoUrl: null,
       signatureUrl: null
     });
@@ -104,8 +130,8 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       logo: '/img/orgs/aces.png',
       header: '/img/orgs/aces_header.png',
       sections: [
-        { name: 'BSCpE', count: 134 },
-        { name: 'DCpET', count: 62 },
+        { name: 'BSCpE', count: progCounts['BSCpE'] || 0 },
+        { name: 'DCpET', count: progCounts['DCpET'] || 0 },
       ],
     },
     {
@@ -113,8 +139,8 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       logo: '/img/orgs/ibits.png',
       header: '/img/orgs/ibits_header.png',
       sections: [
-        { name: 'BSIT', count: 156 },
-        { name: 'DIT', count: 48 },
+        { name: 'BSIT', count: progCounts['BSIT'] || 0 },
+        { name: 'DIT', count: progCounts['DIT'] || 0 },
       ],
     },
     {
@@ -122,7 +148,7 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       logo: '/img/orgs/piie.png',
       header: '/img/orgs/piie_header.png',
       sections: [
-        { name: 'BSIE', count: 95 },
+        { name: 'BSIE', count: progCounts['BSIE'] || 0 },
       ],
     },
     {
@@ -130,7 +156,7 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       logo: '/img/orgs/hrss.png',
       header: '/img/orgs/hrss_header.png',
       sections: [
-        { name: 'BSBA-HRM', count: 123 },
+        { name: 'BSBA-HRM', count: progCounts['BSBA-HRM'] || 0 },
       ],
     },
     {
@@ -138,7 +164,7 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       logo: '/img/orgs/sms.png',
       header: '/img/orgs/sms_header.png',
       sections: [
-        { name: 'BSPSY', count: 110 },
+        { name: 'BSPSY', count: progCounts['BSPSY'] || 0 },
       ],
     },
     {
@@ -146,9 +172,9 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       logo: '/img/orgs/yes.png',
       header: '/img/orgs/yes_header.png',
       sections: [
-        { name: 'BSED-ENG', count: 85 },
-        { name: 'BSED-SS', count: 76 },
-        { name: 'BEED', count: 92 },
+        { name: 'BSED-ENG', count: progCounts['BSED-ENG'] || 0 },
+        { name: 'BSED-SS', count: progCounts['BSED-SS'] || 0 },
+        { name: 'BEED', count: progCounts['BEED'] || 0 },
       ],
     },
   ];
@@ -254,18 +280,24 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
           <div className="panel-card top-programs-card">
             <h3 className="panel-title">Top Programs:</h3>
             <div className="programs-bar-list">
-              {topPrograms.map((prog) => (
-                <div className="prog-bar-item" key={prog.name}>
-                  <span className="prog-name">{prog.name}</span>
-                  <div className="prog-bar-track">
-                    <div
-                      className="prog-bar-fill"
-                      style={{ width: `${(prog.count / prog.max) * 100}%` }}
-                    />
+              {topPrograms.length > 0 ? (
+                topPrograms.map((prog) => (
+                  <div className="prog-bar-item" key={prog.name}>
+                    <span className="prog-name">{prog.name}</span>
+                    <div className="prog-bar-track">
+                      <div
+                        className="prog-bar-fill"
+                        style={{ width: `${Math.min(100, (prog.count / (prog.max || 1)) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="prog-count">{prog.count}</span>
                   </div>
-                  <span className="prog-count">{prog.count}</span>
+                ))
+              ) : (
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', padding: '16px 0', textAlign: 'center' }}>
+                  No program enrollments yet
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -278,13 +310,13 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
                 <Gear size={18} weight="fill" className="supa-gear" />
               </div>
               <div className="supa-stats">
-                <span className="supa-percent">40%</span>
+                <span className="supa-percent">{capacity.percentage || 0}%</span>
                 <div className="supa-bar-discrete">
                   {[...Array(20)].map((_, i) => (
-                    <div key={i} className={`discrete-line ${i < 8 ? 'active' : ''}`} />
+                    <div key={i} className={`discrete-line ${i < Math.max(1, Math.round(((capacity.percentage || 0.2) / 100) * 20)) ? 'active' : ''}`} />
                   ))}
                 </div>
-                <span className="supa-volume">220 MB / 500 MB</span>
+                <span className="supa-volume">{capacity.storageUsedMb || 4.5} MB / {capacity.storageMaxMb || 500} MB</span>
               </div>
             </div>
           </div>
@@ -297,31 +329,39 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
             <h3 className="panel-title">Live Registration Feed:</h3>
             <div className="feed-list-scroll">
               <div className="feed-list">
-                {liveFeed.map((item, idx) => (
-                  <div
-                    className="feed-item"
-                    key={idx}
-                    onClick={() => handleOpenFeedStudent(item, idx)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <PersonAvatar size={48} />
-                    <div className="feed-info">
-                      <h4 className="feed-name">{item.name}</h4>
-                      <p className="feed-section">{item.section}</p>
-                      <p className="feed-time">Registered <strong>{item.time}</strong></p>
-                      <button
-                        className="btn-view-edit"
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenFeedStudent(item, idx);
-                        }}
-                      >
-                        View / Edit
-                      </button>
+                {liveFeed.length > 0 ? (
+                  liveFeed.map((item, idx) => (
+                    <div
+                      className="feed-item"
+                      key={item.id || idx}
+                      onClick={() => handleOpenFeedStudent(item, idx)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <PersonAvatar size={48} />
+                      <div className="feed-info">
+                        <h4 className="feed-name">{item.name}</h4>
+                        <p className="feed-section">{item.section}</p>
+                        <p className="feed-time">Registered <strong>{item.time}</strong></p>
+                        <button
+                          className="btn-view-edit"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenFeedStudent(item, idx);
+                          }}
+                        >
+                          View / Edit
+                        </button>
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '40px 16px', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>
+                    <Users size={36} weight="thin" style={{ opacity: 0.5, marginBottom: 8 }} />
+                    <p style={{ margin: 0, fontWeight: 500 }}>No live registrations yet</p>
+                    <p style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: 4 }}>New student registrations will appear here in real-time.</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
