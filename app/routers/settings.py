@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_admin
@@ -29,7 +30,9 @@ router = APIRouter(prefix="/api/admin/settings", tags=["settings"])
 
 
 async def _get_or_create_settings(db: AsyncSession) -> SystemSettings:
-    result = await db.execute(select(SystemSettings).limit(1))
+    result = await db.execute(
+        select(SystemSettings).options(selectinload(SystemSettings.active_ay)).limit(1)
+    )
     settings = result.scalar_one_or_none()
     if not settings:
         settings = SystemSettings(registration_open=True)

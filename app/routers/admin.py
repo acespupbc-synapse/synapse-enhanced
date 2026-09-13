@@ -7,6 +7,7 @@ GET /api/admin/feed
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_admin
@@ -29,7 +30,9 @@ async def get_stats(
     enrolled_count = enrolled.scalar_one() or 0
 
     # Active academic year
-    settings_result = await db.execute(select(SystemSettings).limit(1))
+    settings_result = await db.execute(
+        select(SystemSettings).options(selectinload(SystemSettings.active_ay)).limit(1)
+    )
     system_settings = settings_result.scalar_one_or_none()
 
     active_ay_name = "AY 2025-2026"
@@ -82,6 +85,7 @@ async def get_live_feed(
 ):
     result = await db.execute(
         select(Student)
+        .options(selectinload(Student.course), selectinload(Student.section))
         .where(Student.deleted_at.is_(None))
         .order_by(Student.created_at.desc())
         .limit(10)
