@@ -58,7 +58,18 @@ app.include_router(programs.router)
 app.include_router(settings_router.router)
 app.include_router(export.router)
 
-# ── Health Check (public) ─────────────────────────────────────────────────────
+# ── Health Check & Root (public) ───────────────────────────────────────────────
+@app.get("/", include_in_schema=False)
+async def root():
+    return {
+        "status": "online",
+        "service": "ACES Synapse Enhanced API",
+        "version": "2.2.0",
+        "docs": "/docs",
+        "health": "/api/health",
+    }
+
+
 @app.get("/api/health")
 async def health_check():
     return {
