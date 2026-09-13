@@ -11,7 +11,8 @@ import {
   IdentificationCard
 } from '@phosphor-icons/react';
 import { EditStudentModal } from './views/RegistrationsView';
-import { statsApi, studentApi } from '../services/api';
+import { statsApi, studentApi, settingsApi } from '../services/api';
+import Footer from './common/Footer';
 import './BentoGrid.css';
 
 // ── Utility: format time and date ──────────────────────────────────────────
@@ -107,9 +108,23 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
 
   const cpu = stats?.cpuPercent != null ? `${stats.cpuPercent}%` : '0%';
   const apiHealth = stats?.latencyMs != null ? `${stats.latencyMs} ms` : '—';
-  const liveUsers = '1';
+  const liveUsers = stats?.liveUsers != null ? stats.liveUsers : 0;
   const academicYear = stats?.ayName?.replace(/^AY\s*/i, '') ?? '2026-2027';
   const registrationOpen = stats?.isRegistrationOpen ?? true;
+
+  const handleToggleRegistration = async () => {
+    const nextState = !registrationOpen;
+    try {
+      await settingsApi.toggleRegistration(nextState);
+      if (onShowToast) {
+        onShowToast(nextState ? 'Registration is now OPEN.' : 'Registration is now CLOSED.');
+      }
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(`Failed to toggle registration: ${err.message}`);
+      }
+    }
+  };
 
   const totalRegistered = stats?.enrolledCount ?? 0;
   const recycleBinCount = String(stats?.recycleBinCount ?? 0).padStart(2, '0');
@@ -278,14 +293,20 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
           </div>
         </div>
 
-        {/* Registration Status Indicator Card (Only toggleable in Settings) */}
-        <div className="metric-card toggle-metric-card" title="Registration status can only be modified in Settings">
+        {/* Registration Status Indicator Card */}
+        <div className="metric-card toggle-metric-card">
           <span className="metric-label">Registration:</span>
           <div className="status-badge-container">
-            <div className={`dashboard-status-badge ${registrationOpen ? 'open' : 'closed'}`}>
-              <span className="status-dot" />
-              <span className="status-badge-text">{registrationOpen ? 'REGISTRATION OPEN' : 'REGISTRATION CLOSED'}</span>
-            </div>
+            <button
+              type="button"
+              className={`custom-toggle ${registrationOpen ? 'open' : 'closed'}`}
+              onClick={handleToggleRegistration}
+              title={`Click to ${registrationOpen ? 'close' : 'open'} registration`}
+              aria-label="Toggle Registration Status"
+            >
+              <span className="toggle-text">{registrationOpen ? 'OPEN' : 'CLOSED'}</span>
+              <span className="toggle-knob" />
+            </button>
           </div>
         </div>
       </div>
@@ -485,22 +506,7 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
       </div>
 
       {/* ── Dashboard Footer Bar ────────────────────────────────────────────── */}
-      <footer className="dashboard-footer">
-        <div className="dashboard-footer-left">
-          <span className="dashboard-footer-brand">© 2026 ACES-PUPBC Synapse</span>
-          <span className="version-badge-sm">Enhanced v1.0</span>
-          <span className="dashboard-footer-sub">
-            For campus use only. Compliant with Data Privacy Act of 2012 (RA 10173).
-          </span>
-        </div>
-        <div className="dashboard-footer-right">
-          <a href="#" className="dashboard-footer-link">Developed by JB Hernandez</a>
-          <span className="dashboard-footer-divider">|</span>
-          <a href="#" className="dashboard-footer-link">Support</a>
-          <span className="dashboard-footer-divider">|</span>
-          <a href="#" className="dashboard-footer-link">Facebook</a>
-        </div>
-      </footer>
+      <Footer />
 
       {/* Edit Student Record Modal when clicked from Live Feed */}
       {editingStudent && (

@@ -469,3 +469,45 @@ async def upload_signature(
     db.add(student)
 
     return {"success": True, "signature_url": get_presigned_url(new_key)}
+
+
+# ── Live Visitor Heartbeat ────────────────────────────────────────────────────
+
+import time
+from pydantic import BaseModel
+
+
+class HeartbeatRequest(BaseModel):
+    session_id: str
+
+
+_live_visitors: dict[str, float] = {}
+
+
+def record_visitor_heartbeat(session_id: str):
+    if session_id:
+        _live_visitors[session_id] = time.time()
+
+
+def remove_visitor_heartbeat(session_id: str):
+    _live_visitors.pop(session_id, None)
+
+
+def get_live_visitor_count(window_seconds: float = 35.0) -> int:
+    cutoff = time.time() - window_seconds
+    stale = [k for k, t in _live_visitors.items() if t < cutoff]
+    for k in stale:
+        _live_visitors.pop(k, None)
+    return len(_live_visitors)
+
+
+@router.post("/api/students/heartbeat")
+async def student_heartbeat(payload: HeartbeatRequest):
+    record_visitor_heartbeat(payload.session_id)
+    return {"success": True, "live_count": get_live_visitor_count()}
+
+
+@router.post("/api/students/heartbeat/leave")
+async def student_heartbeat_leave(payload: HeartbeatRequest):
+    remove_visitor_heartbeat(payload.session_id)
+    return {"success": True}

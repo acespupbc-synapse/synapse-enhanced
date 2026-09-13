@@ -7,6 +7,7 @@ Access is via presigned URLs with a configurable expiry.
 import base64
 import io
 import re
+import time
 import uuid
 from typing import Optional
 
@@ -24,17 +25,22 @@ R2_ENDPOINT = f"https://{settings.cf_account_id}.r2.cloudflarestorage.com"
 # Presigned URL expiry (seconds) — 1 hour
 PRESIGNED_EXPIRY = 3600
 
+_r2_client = None
+
 
 def _get_client():
-    """Create a boto3 S3 client pointed at Cloudflare R2."""
-    return boto3.client(
-        "s3",
-        endpoint_url=R2_ENDPOINT,
-        aws_access_key_id=settings.cf_r2_access_key_id,
-        aws_secret_access_key=settings.cf_r2_secret_access_key,
-        config=Config(signature_version="s3v4"),
-        region_name="auto",
-    )
+    """Get or create a cached boto3 S3 client pointed at Cloudflare R2."""
+    global _r2_client
+    if _r2_client is None:
+        _r2_client = boto3.client(
+            "s3",
+            endpoint_url=R2_ENDPOINT,
+            aws_access_key_id=settings.cf_r2_access_key_id,
+            aws_secret_access_key=settings.cf_r2_secret_access_key,
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+    return _r2_client
 
 
 def decode_data_url(data_url: str) -> tuple[bytes, str]:
@@ -95,13 +101,21 @@ def delete_media(object_key: str) -> None:
         pass  # Ignore missing object errors
 
 
+_presigned_url_cache: dict[str, tuple[str, float]] = {}
+
+
 def get_presigned_url(object_key: str, expiry: int = PRESIGNED_EXPIRY) -> Optional[str]:
     """
-    Generate a presigned GET URL for a private R2 object.
+    Generate a presigned GET URL for a private R2 object with 30-minute in-memory caching.
     Returns None if the object_key is empty/None.
     """
     if not object_key:
         return None
+    now = time.time()
+    cached = _presigned_url_cache.get(object_key)
+    if cached and now < cached[1]:
+        return cached[0]
+
     try:
         client = _get_client()
         url = client.generate_presigned_url(
@@ -109,6 +123,8 @@ def get_presigned_url(object_key: str, expiry: int = PRESIGNED_EXPIRY) -> Option
             Params={"Bucket": settings.cf_r2_bucket_name, "Key": object_key},
             ExpiresIn=expiry,
         )
+        # Cache for expiry - 300s or up to 30 mins
+        _presigned_url_cache[object_key] = (url, now + min(expiry - 300, 1800))
         return url
     except Exception as exc:
         print(f"[WARN] Failed to generate presigned URL for {object_key}: {exc}")

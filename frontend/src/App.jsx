@@ -151,30 +151,24 @@ export default function App() {
   return (
     <>
       <Routes>
-        {/* Root Redirect: unauthenticated -> /home, authenticated -> /dashboard */}
+        {/* Public Landing Homepage: / and /home (Always public portal, never auto-redirect to dashboard) */}
         <Route
           path="/"
           element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <Navigate to="/home" replace />
-            )
+            <div className="app-container">
+              <div className="login-bg-layer" />
+              <HomeView />
+            </div>
           }
         />
 
-        {/* Public Landing Homepage: /home */}
         <Route
           path="/home"
           element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <div className="app-container">
-                <div className="login-bg-layer" />
-                <HomeView />
-              </div>
-            )
+            <div className="app-container">
+              <div className="login-bg-layer" />
+              <HomeView />
+            </div>
           }
         />
 
@@ -290,6 +284,7 @@ export default function App() {
                           stats={stats}
                           onToggleRegistration={handleToggleRegistration}
                           onShowToast={showToast}
+                          onRefreshStats={fetchFullDashboard}
                         />
                       }
                     />

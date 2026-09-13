@@ -24,6 +24,7 @@ from app.schemas.settings import (
     AcademicYearCreate,
     AcademicYearOut,
     SettingsOut,
+    SettingsUpdateRequest,
     ToggleRegistrationRequest,
 )
 
@@ -56,12 +57,14 @@ async def get_settings(
 
 @router.put("")
 async def update_settings(
-    payload: SettingsOut,
+    payload: SettingsUpdateRequest,
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
     settings = await _get_or_create_settings(db)
-    settings.registration_open = payload.registration_open
+    reg_open = payload.get_registration_open()
+    if reg_open is not None:
+        settings.registration_open = reg_open
 
     if payload.active_ay:
         clean_ay = payload.active_ay.replace("AY", "").strip()

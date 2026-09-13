@@ -91,7 +91,7 @@ class StudentOut(BaseModel):
     gender: Optional[str] = None
     birth_date: Optional[date] = None
     email: str
-    status: str
+    status: Optional[str] = None
     organization: Optional[str] = None
 
     # Academic

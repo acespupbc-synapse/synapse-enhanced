@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import Footer from '../common/Footer';
 import './LoginView.css';
 
 export default function HomeView() {
@@ -7,15 +8,18 @@ export default function HomeView() {
 
   return (
     <div className="login-view-container">
-      <div className="login-card">
+      <div className="login-card home-card">
         <div className="login-header">
-          <h1>
-            <span className="brand-white">ACES</span> <span className="brand-red">Synapse</span>
+          <div className="home-logo-wrap">
+            <img
+              src="/img/logo/aces-synapse-red.png"
+              alt="ACES Synapse Logo"
+              className="home-synapse-logo"
+            />
+          </div>
+          <h1 className="home-brand-title">
+            ACES SYNAPSE
           </h1>
-          <p className="subtitle">
-            The Official Student ID Processing System of the Association of Computer
-            Engineering Students - PUPBC
-          </p>
         </div>
 
         <div className="login-actions">
@@ -33,6 +37,10 @@ export default function HomeView() {
         <div className="login-card-footer">
           ACES-PUPBC STUDENT INFORMATION SYSTEM
         </div>
+      </div>
+
+      <div className="home-footer-wrapper">
+        <Footer />
       </div>
     </div>
   );

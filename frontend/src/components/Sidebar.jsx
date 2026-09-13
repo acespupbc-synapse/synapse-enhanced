@@ -48,8 +48,7 @@ export default function Sidebar({
       {/* Mobile Top Header */}
       <header className="mobile-header">
         <div className="mobile-header-brand">
-          <img src="/img/orgs/aces.png" alt="ACES Logo" className="mobile-logo" />
-          <span className="mobile-title">ACES Synapse</span>
+          <img src="/img/logo/synapse-banner.png" alt="ACES Synapse" className="mobile-banner-img" />
         </div>
         <button
           className="mobile-hamburger"
@@ -72,10 +71,11 @@ export default function Sidebar({
         
         {/* Brand Header */}
         <div className="sidebar-brand-header">
-          <img src="/img/orgs/aces.png" alt="ACES Logo" className="sidebar-brand-logo" />
-          <h2 className="sidebar-brand-title">
-            <span className="brand-white">ACES</span> <span className="brand-red">Synapse</span>
-          </h2>
+          <img
+            src="/img/logo/synapse-banner.png"
+            alt="ACES Synapse"
+            className="sidebar-brand-banner"
+          />
         </div>
 
         {/* Main Navigation */}

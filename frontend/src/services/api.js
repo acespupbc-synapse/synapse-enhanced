@@ -207,13 +207,52 @@ export const studentApi = {
   },
 
   async update(id, updatedFields) {
+    const payload = {
+      first_name: updatedFields.firstName || updatedFields.first_name,
+      middle_name: updatedFields.middleName || updatedFields.middle_name,
+      last_name: updatedFields.lastName || updatedFields.last_name,
+      email: updatedFields.email,
+      gender: updatedFields.gender,
+      birth_date: updatedFields.birthdate || updatedFields.birth_date,
+      perm_strt: updatedFields.residentialAddress || updatedFields.perm_strt,
+      contact_person_name: updatedFields.emergencyContactName || updatedFields.contact_person_name,
+      contact_person_number: updatedFields.emergencyContactNumber || updatedFields.contact_person_number,
+      contact_strt: updatedFields.emergencyAddress || updatedFields.contact_strt,
+      course_code: updatedFields.course || updatedFields.program || updatedFields.course_code,
+      section_name: updatedFields.section?.replace(/^[A-Za-z-]+\s*/, '') || updatedFields.section_name,
+      photo_data: (updatedFields.photoUrl?.startsWith('data:') ? updatedFields.photoUrl : null) || updatedFields.photo_data,
+      signature_data: (updatedFields.signatureUrl?.startsWith('data:') ? updatedFields.signatureUrl : null) || updatedFields.signature_data,
+    };
+
     try {
       return await request(`/admin/students/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(updatedFields),
+        body: JSON.stringify(payload),
       });
     } catch (_) {
       return { success: true, updated: updatedFields };
+    }
+  },
+
+  async heartbeat(sessionId) {
+    try {
+      return await request('/students/heartbeat', {
+        method: 'POST',
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+    } catch (_) {
+      return { success: false };
+    }
+  },
+
+  async heartbeatLeave(sessionId) {
+    try {
+      return await request('/students/heartbeat/leave', {
+        method: 'POST',
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+    } catch (_) {
+      return { success: false };
     }
   },
 
@@ -355,6 +394,21 @@ export const settingsApi = {
     }
   },
 
+  async getAcademicYears() {
+    try {
+      return await request('/admin/settings/academic-years');
+    } catch (_) {
+      return [{ name: '2026-2027', is_active: true }];
+    }
+  },
+
+  async createAcademicYear(payload) {
+    return await request('/admin/settings/academic-years', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   async testConnection() {
     try {
       return await request('/health');
@@ -384,6 +438,28 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadCsv] Failed:', err.message);
+      return false;
+    }
+  },
+
+  async downloadMdb(filters = {}) {
+    const query = new URLSearchParams(filters).toString();
+    try {
+      const blob = await request(`/admin/exports/mdb${query ? `?${query}` : ''}`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const tag = filters.program ? (filters.section ? `_${filters.program}_${filters.section}` : `_${filters.program}`) : '';
+      a.download = `CardFive_Export${tag}_${new Date().toISOString().slice(0, 10)}.mdb`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return true;
+    } catch (err) {
+      console.warn('[exportApi.downloadMdb] Failed:', err.message);
       return false;
     }
   },

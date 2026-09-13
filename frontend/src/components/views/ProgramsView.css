@@ -459,3 +459,15 @@
   font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.12);
 }
+
+.prog-table-sections-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #F87171;
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}

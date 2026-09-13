@@ -968,6 +968,64 @@
   font-weight: 600;
 }
 
+/* ── Export Dropdown Menu ────────────────────────────────────────────────── */
+.regs-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(123, 0, 0, 0.22);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  border-radius: 7px;
+  color: #FCA5A5;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.regs-export-btn:hover {
+  background: rgba(220, 38, 38, 0.35);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #FFFFFF;
+}
+
+.regs-export-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 250px;
+  background: #140A0A;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 16px rgba(123, 0, 0, 0.2);
+  z-index: 100;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.regs-export-menu-item {
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #D4D4D8;
+  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.regs-export-menu-item:hover {
+  background: rgba(220, 38, 38, 0.25);
+  color: #FFFFFF;
+}
+
 /* ── Birthdate Selector Grid ─────────────────────────────────────────────── */
 .modal-bday-grid {
   display: grid;

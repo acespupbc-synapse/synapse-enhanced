@@ -16,7 +16,8 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import get_current_admin
 from app.models.admin_user import AdminUser
-from app.models.config import Course, Organization
+from app.models.config import Course, Organization, Section
+from app.models.student import Student
 from app.schemas.programs import CourseCreate, CourseOut, CourseUpdate
 
 router = APIRouter(prefix="/api/admin/programs", tags=["programs"])
@@ -28,13 +29,27 @@ async def list_programs(
     _admin: AdminUser = Depends(get_current_admin),
 ):
     result = await db.execute(
-        select(Course).options(selectinload(Course.organization)).order_by(Course.code)
+        select(Course)
+        .options(selectinload(Course.organization), selectinload(Course.sections))
+        .order_by(Course.code)
     )
     courses = result.scalars().all()
-    return [
-        CourseOut(id=c.id, org=c.organization.code if c.organization else "", code=c.code, name=c.name)
-        for c in courses
-    ]
+    out = []
+    for c in courses:
+        yr1_secs = sorted([s.name for s in c.sections if s.year_level == 1])
+        if not yr1_secs:
+            yr1_secs = ["1-1"]
+        out.append(
+            CourseOut(
+                id=c.id,
+                org=c.organization.code if c.organization else "",
+                code=c.code,
+                name=c.name,
+                section_count=len(yr1_secs),
+                sections=yr1_secs,
+            )
+        )
+    return out
 
 
 @router.post("", response_model=CourseOut)
@@ -59,7 +74,28 @@ async def create_program(
     db.add(course)
     await db.flush()
 
-    return CourseOut(id=course.id, org=org.code, code=course.code, name=course.name)
+    sec_count = max(1, payload.section_count or 1)
+    secs_created = []
+    for i in range(1, sec_count + 1):
+        sec_name = f"1-{i}"
+        secs_created.append(sec_name)
+        sec = Section(
+            course_id=course.id,
+            year_level=1,
+            name=sec_name,
+            capacity=50,
+        )
+        db.add(sec)
+    await db.flush()
+
+    return CourseOut(
+        id=course.id,
+        org=org.code,
+        code=course.code,
+        name=course.name,
+        section_count=sec_count,
+        sections=secs_created,
+    )
 
 
 @router.put("/{program_id}", response_model=CourseOut)
@@ -70,7 +106,9 @@ async def update_program(
     _admin: AdminUser = Depends(get_current_admin),
 ):
     result = await db.execute(
-        select(Course).options(selectinload(Course.organization)).where(Course.id == program_id)
+        select(Course)
+        .options(selectinload(Course.organization), selectinload(Course.sections))
+        .where(Course.id == program_id)
     )
     course = result.scalar_one_or_none()
     if not course:
@@ -94,7 +132,57 @@ async def update_program(
         course.name = payload.name.strip()
 
     db.add(course)
-    return CourseOut(id=course.id, org=org_code, code=course.code, name=course.name)
+    await db.flush()
+
+    # Manage sections if section_count is specified
+    if payload.section_count is not None:
+        target_count = max(1, payload.section_count)
+        sec_res = await db.execute(
+            select(Section)
+            .where(Section.course_id == course.id, Section.year_level == 1)
+            .order_by(Section.name)
+        )
+        curr_secs = sec_res.scalars().all()
+        curr_count = len(curr_secs)
+
+        if target_count > curr_count:
+            for i in range(curr_count + 1, target_count + 1):
+                sec_name = f"1-{i}"
+                sec = Section(
+                    course_id=course.id,
+                    year_level=1,
+                    name=sec_name,
+                    capacity=50,
+                )
+                db.add(sec)
+        elif target_count < curr_count:
+            # Safely prune from the end if no students are assigned
+            for sec in reversed(curr_secs[target_count:]):
+                stud_check = await db.execute(
+                    select(Student.id).where(Student.section_id == sec.id).limit(1)
+                )
+                if not stud_check.scalar_one_or_none():
+                    await db.delete(sec)
+        await db.flush()
+
+    # Re-fetch sections
+    refetched_secs = await db.execute(
+        select(Section.name)
+        .where(Section.course_id == course.id, Section.year_level == 1)
+        .order_by(Section.name)
+    )
+    final_secs = refetched_secs.scalars().all()
+    if not final_secs:
+        final_secs = ["1-1"]
+
+    return CourseOut(
+        id=course.id,
+        org=org_code,
+        code=course.code,
+        name=course.name,
+        section_count=len(final_secs),
+        sections=list(final_secs),
+    )
 
 
 @router.delete("/{program_id}")

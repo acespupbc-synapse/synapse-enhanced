@@ -18,9 +18,10 @@ import {
   CaretDown
 } from '@phosphor-icons/react';
 import { studentApi, settingsApi, authApi, exportApi } from '../../services/api';
+import Footer from '../common/Footer';
 import './SettingsView.css';
 
-export default function SettingsView({ stats, onToggleRegistration, onShowToast }) {
+export default function SettingsView({ stats, onToggleRegistration, onShowToast, onRefreshStats }) {
   const [activeCategory, setActiveCategory] = useState('portal');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -54,6 +55,17 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   const [academicYears, setAcademicYears] = useState([
     '2026-2027'
   ]);
+
+  useEffect(() => {
+    settingsApi.getAcademicYears().then(res => {
+      if (Array.isArray(res) && res.length > 0) {
+        const names = res.map(ay => (typeof ay === 'string' ? ay : ay.name)).filter(Boolean);
+        if (names.length > 0) {
+          setAcademicYears(prev => [...new Set([...prev, ...names])]);
+        }
+      }
+    }).catch(() => {});
+  }, []);
 
   const [portalConfig, setPortalConfig] = useState({
     isOpen: stats?.isRegistrationOpen ?? true,
@@ -172,7 +184,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   };
 
   // Handle adding new Academic Year
-  const handleAddAcademicYear = (e) => {
+  const handleAddAcademicYear = async (e) => {
     e.preventDefault();
     setNewAYError('');
     const trimmed = newAYInput.trim();
@@ -189,12 +201,21 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
       return;
     }
 
-    setAcademicYears(prev => [...prev, trimmed]);
-    setPortalConfig(prev => ({ ...prev, academicYear: trimmed }));
-    setShowAddAYModal(false);
-    setNewAYInput('');
-    if (onShowToast) {
-      onShowToast(`Academic Year ${trimmed} created and set as active.`);
+    try {
+      await settingsApi.createAcademicYear({ name: trimmed, is_active: true });
+      await settingsApi.updateSettings({ active_ay: trimmed });
+      setAcademicYears(prev => [...new Set([...prev, trimmed])]);
+      setPortalConfig(prev => ({ ...prev, academicYear: trimmed }));
+      setShowAddAYModal(false);
+      setNewAYInput('');
+      if (onShowToast) {
+        onShowToast(`Academic Year ${trimmed} created and set as active.`);
+      }
+      if (onRefreshStats) {
+        onRefreshStats();
+      }
+    } catch (err) {
+      setNewAYError(err.message || 'Failed to create academic year.');
     }
   };
 
@@ -737,6 +758,9 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
         </main>
       </div>
 
+      {/* Footer */}
+      <Footer />
+
       {/* ── Modal: Password Confirmation for Registration Status Toggle ──────── */}
       {showToggleAuthModal && (
         <div className="settings-modal-overlay" role="dialog" aria-modal="true">
@@ -964,13 +988,24 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                 type="button"
                 className="btn-primary"
                 style={{ background: '#7B0000', color: '#FFFFFF', border: 'none', padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
-                onClick={() => {
-                  setPortalConfig(p => ({ ...p, academicYear: pendingAY }));
+                onClick={async () => {
+                  const targetAY = pendingAY;
+                  setPortalConfig(p => ({ ...p, academicYear: targetAY }));
                   setShowAYWarningModal(false);
-                  if (onShowToast) {
-                    onShowToast(`Academic Year changed to ${pendingAY}. Click "Save Changes" to apply.`);
-                  }
                   setPendingAY(null);
+                  try {
+                    await settingsApi.updateSettings({ active_ay: targetAY });
+                    if (onShowToast) {
+                      onShowToast(`Academic Year switched to ${targetAY}.`);
+                    }
+                    if (onRefreshStats) {
+                      onRefreshStats();
+                    }
+                  } catch (err) {
+                    if (onShowToast) {
+                      onShowToast(`Failed to update Academic Year: ${err.message}`);
+                    }
+                  }
                 }}
               >
                 Confirm Change

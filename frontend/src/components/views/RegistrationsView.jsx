@@ -17,9 +17,11 @@ import {
   X,
   GraduationCap,
   Faders,
+  DownloadSimple,
 } from '@phosphor-icons/react';
 import { studentApi, statsApi, exportApi } from '../../services/api';
 import { CameraModal, CropperModal, SignatureModal } from '../common/MediaModals';
+import Footer from '../common/Footer';
 import './RegistrationsView.css';
 
 // ── Data ───────────────────────────────────────────────────────────────────
@@ -574,7 +576,6 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
             emergencyAddress: s.perm_strt || '',
             photoUrl: s.photo_url || null,
             signatureUrl: s.signature_url || null,
-            status: s.status || 'PENDING',
             createdAt: s.created_at || null,
             time: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recently'
           }));
@@ -592,6 +593,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
   // Sorting state (strictly 4 options)
   const [sortBy, setSortBy] = useState('name-asc');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const sortLabels = {
     'name-asc': 'Name (A to Z)',
@@ -614,6 +616,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
       if (format === 'csv') ok = await exportApi.downloadCsv(filter);
       else if (format === 'xlsx') ok = await exportApi.downloadXlsx(filter);
       else if (format === 'pdf') ok = await exportApi.downloadPdf(filter);
+      else if (format === 'mdb') ok = await exportApi.downloadMdb(filter);
 
       if (ok && onShowToast) {
         onShowToast(`${format.toUpperCase()} export downloaded for ${label}.`);
@@ -679,6 +682,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
     setIsDeleting(false);
     setStudentToDelete(null);
   };
+  const handleConfirmDelete = handleDeleteConfirm;
 
   return (
     <div className="regs-drilldown">
@@ -784,6 +788,56 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
               )}
             </div>
 
+            {/* Export dropdown */}
+            <div className="regs-export-wrapper" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="regs-export-btn"
+                onClick={() => setShowExportMenu(prev => !prev)}
+                aria-expanded={showExportMenu}
+                title="Export this section's student records"
+              >
+                <DownloadSimple size={15} />
+                <span>Export</span>
+                <CaretDown size={11} />
+              </button>
+
+              {showExportMenu && (
+                <div className="regs-export-dropdown-menu">
+                  <button
+                    type="button"
+                    className="regs-export-menu-item"
+                    onClick={() => {
+                      handleSectionExport('csv');
+                      setShowExportMenu(false);
+                    }}
+                  >
+                    CSV (CardFive Table)
+                  </button>
+                  <button
+                    type="button"
+                    className="regs-export-menu-item"
+                    onClick={() => {
+                      handleSectionExport('pdf');
+                      setShowExportMenu(false);
+                    }}
+                  >
+                    PDF (Masterlist Document)
+                  </button>
+                  <button
+                    type="button"
+                    className="regs-export-menu-item"
+                    onClick={() => {
+                      handleSectionExport('mdb');
+                      setShowExportMenu(false);
+                    }}
+                  >
+                    MS Access MDB (CardFive Database)
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button className="regs-filter-icon-btn" aria-label="Filter options">
               <Faders size={15} />
             </button>
@@ -837,20 +891,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
       </div>
 
       {/* Footer */}
-      <footer className="page-footer">
-        <div className="page-footer-left">
-          <span className="page-footer-brand">© 2026 ACES-PUPBC Synapse</span>
-          <span className="version-badge-sm" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: '0.6rem', color: '#A1A1AA', fontFamily: 'monospace' }}>v2.1.2</span>
-          <span className="page-footer-sub">For campus use only. Compliant with Data Privacy Act of 2012 (RA 10173).</span>
-        </div>
-        <div className="page-footer-right">
-          <a href="#" className="page-footer-link">Developed by JB Hernandez</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Support</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Facebook</a>
-        </div>
-      </footer>
+      <Footer />
 
       {/* Edit Student Modal */}
       {editStudent && (
@@ -906,7 +947,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
                   cursor: 'pointer'
                 }}
                 disabled={isDeleting}
-                onClick={handleConfirmDelete}
+                onClick={handleDeleteConfirm}
               >
                 {isDeleting ? 'Moving…' : 'Move to Recycle Bin'}
               </button>
@@ -1034,20 +1075,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
       </div>
 
       {/* Footer */}
-      <footer className="page-footer">
-        <div className="page-footer-left">
-          <span className="page-footer-brand">© 2026 ACES-PUPBC Synapse</span>
-          <span className="version-badge-sm" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: '0.6rem', color: '#A1A1AA', fontFamily: 'monospace' }}>v2.1.2</span>
-          <span className="page-footer-sub">For campus use only. Compliant with Data Privacy Act of 2012 (RA 10173).</span>
-        </div>
-        <div className="page-footer-right">
-          <a href="#" className="page-footer-link">Developed by JB Hernandez</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Support</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Facebook</a>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

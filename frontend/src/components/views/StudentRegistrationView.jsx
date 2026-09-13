@@ -25,6 +25,7 @@ import {
   Minus
 } from '@phosphor-icons/react';
 import { studentApi } from '../../services/api';
+import Footer from '../common/Footer';
 import './StudentRegistrationView.css';
 
 // ── Academic Organizations & Academic Programs ──────────────────────────────
@@ -141,6 +142,33 @@ export default function StudentRegistrationView({ onBack }) {
   const [dobMonth, setDobMonth] = useState('');
   const [dobDay, setDobDay] = useState('');
   const [dobYear, setDobYear] = useState('');
+
+  // ── Live Visitor Heartbeat for Accurate Dashboard Metrics ────────────────
+  useEffect(() => {
+    let sessionId = sessionStorage.getItem('synapse_visitor_session');
+    if (!sessionId) {
+      sessionId = 'vis_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+      sessionStorage.setItem('synapse_visitor_session', sessionId);
+    }
+
+    studentApi.heartbeat(sessionId);
+
+    const interval = setInterval(() => {
+      studentApi.heartbeat(sessionId);
+    }, 15000);
+
+    const handleLeave = () => {
+      studentApi.heartbeatLeave(sessionId);
+    };
+
+    window.addEventListener('beforeunload', handleLeave);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleLeave);
+      studentApi.heartbeatLeave(sessionId);
+    };
+  }, []);
 
   const orgDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -2104,30 +2132,8 @@ export default function StudentRegistrationView({ onBack }) {
         </div>
       )}
 
-      {/* ── Global Footer (Matching Login & Admin Footer, NO Admin Portal Link) */}
-      <footer className="sreg-global-footer">
-        <div className="sreg-footer-left">
-          <div className="sreg-footer-brand-wrap">
-            <span>&copy; 2026 <strong>ACES-PUPBC Synapse</strong></span>
-            <span className="sreg-footer-badge">Enhanced v1.0</span>
-          </div>
-          <span className="sreg-footer-sub">
-            For campus use only. Compliant with Data Privacy Act of 2012 (RA 10173).
-          </span>
-        </div>
-
-        <div className="sreg-footer-right">
-          <a href="https://github.com/JOBIJEEEB" target="_blank" rel="noreferrer">
-            Developed by JB Hernandez
-          </a>
-          <span className="sreg-footer-divider">|</span>
-          <a href="mailto:acesorganization2022@gmail.com">Support</a>
-          <span className="sreg-footer-divider">|</span>
-          <a href="https://www.facebook.com/acespupbc" target="_blank" rel="noreferrer">
-            Facebook
-          </a>
-        </div>
-      </footer>
+      {/* ── Global Footer (Unified Footer Component) */}
+      <Footer />
     </div>
   );
 }

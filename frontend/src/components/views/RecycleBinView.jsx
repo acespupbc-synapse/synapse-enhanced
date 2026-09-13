@@ -9,6 +9,7 @@ import {
   Users
 } from '@phosphor-icons/react';
 import { studentApi } from '../../services/api';
+import Footer from '../common/Footer';
 import './RecycleBinView.css';
 
 function relativeTime(date) {
@@ -207,20 +208,7 @@ export default function RecycleBinView() {
       </div>
 
       {/* Footer */}
-      <footer className="page-footer">
-        <div className="page-footer-left">
-          <span className="page-footer-brand">© 2026 ACES-PUPBC Synapse</span>
-          <span style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: '0.6rem', color: '#A1A1AA', fontFamily: 'monospace' }}>v2.1.2</span>
-          <span className="page-footer-sub">For campus use only. Compliant with Data Privacy Act of 2012 (RA 10173).</span>
-        </div>
-        <div className="page-footer-right">
-          <a href="#" className="page-footer-link">Developed by JB Hernandez</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Support</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Facebook</a>
-        </div>
-      </footer>
+      <Footer />
 
       {/* Purge confirmation modal */}
       {purgeTarget && (

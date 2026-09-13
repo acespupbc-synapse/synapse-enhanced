@@ -19,12 +19,14 @@ class CourseCreate(BaseModel):
     org: str = Field(..., description="Organization code e.g. ACES")
     code: str = Field(..., min_length=1, max_length=30)
     name: str = Field(..., min_length=1, max_length=255)
+    section_count: Optional[int] = Field(default=1, ge=1, le=15)
 
 
 class CourseUpdate(BaseModel):
     org: Optional[str] = None
     code: Optional[str] = None
     name: Optional[str] = None
+    section_count: Optional[int] = Field(default=None, ge=1, le=15)
 
 
 class CourseOut(BaseModel):
@@ -32,6 +34,8 @@ class CourseOut(BaseModel):
     org: str  # org code (denormalized for frontend)
     code: str
     name: str
+    section_count: int = 1
+    sections: list[str] = []
     model_config = {"from_attributes": True}
 
 

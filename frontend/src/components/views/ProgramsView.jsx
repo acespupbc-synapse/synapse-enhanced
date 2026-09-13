@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, PencilSimple, Trash, CaretDown } from '@phosphor-icons/react';
 import { programsApi } from '../../services/api';
+import Footer from '../common/Footer';
 import './ProgramsView.css';
 
 
@@ -38,6 +39,7 @@ function ProgramModal({ program, onClose, onSave }) {
   const [formOrg,  setFormOrg]  = useState(program?.org  ?? '');
   const [formCode, setFormCode] = useState(program?.code ?? '');
   const [formName, setFormName] = useState(program?.name ?? '');
+  const [formSectionCount, setFormSectionCount] = useState(program?.section_count ?? (program?.sections?.length || 1));
 
   const handleSave = () => {
     if (!formOrg || !formCode.trim() || !formName.trim()) return;
@@ -46,6 +48,7 @@ function ProgramModal({ program, onClose, onSave }) {
       org:  formOrg,
       code: formCode.trim().toUpperCase(),
       name: formName.trim(),
+      section_count: Math.max(1, Number(formSectionCount) || 1),
     });
     onClose();
   };
@@ -88,6 +91,21 @@ function ProgramModal({ program, onClose, onSave }) {
               onChange={e => setFormName(e.target.value)}
               placeholder="Full program name…"
             />
+          </div>
+
+          <div className="prog-modal-field">
+            <label>Number of Sections (1st Year)</label>
+            <input
+              type="number"
+              min={1}
+              max={15}
+              value={formSectionCount}
+              onChange={e => setFormSectionCount(Math.max(1, parseInt(e.target.value) || 1))}
+              placeholder="e.g. 2"
+            />
+            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
+              Generates sections 1-1 through 1-{formSectionCount} for registration and export.
+            </span>
           </div>
         </div>
 
@@ -258,15 +276,16 @@ export default function ProgramsView() {
             <thead>
               <tr>
                 <th style={{ width: 56 }}>Org</th>
-                <th>Program Code</th>
+                <th style={{ width: 130 }}>Program Code</th>
                 <th>Full Program Name</th>
-                <th>Actions</th>
+                <th style={{ width: 150 }}>Sections (1st Yr)</th>
+                <th style={{ width: 90 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {displayed.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>
                     No programs found.
                   </td>
                 </tr>
@@ -285,6 +304,11 @@ export default function ProgramsView() {
                   </td>
                   <td>
                     <span className="prog-table-name">{prog.name}</span>
+                  </td>
+                  <td>
+                    <span className="prog-table-sections-badge">
+                      {prog.section_count || prog.sections?.length || 1} Sec ({prog.sections?.join(', ') || '1-1'})
+                    </span>
                   </td>
                   <td>
                     <div className="prog-table-actions">
@@ -312,20 +336,7 @@ export default function ProgramsView() {
       </div>
 
       {/* Footer */}
-      <footer className="page-footer">
-        <div className="page-footer-left">
-          <span className="page-footer-brand">© 2026 ACES-PUPBC Synapse</span>
-          <span style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: '0.6rem', color: '#A1A1AA', fontFamily: 'monospace' }}>v2.1.2</span>
-          <span className="page-footer-sub">For campus use only. Compliant with Data Privacy Act of 2012 (RA 10173).</span>
-        </div>
-        <div className="page-footer-right">
-          <a href="#" className="page-footer-link">Developed by JB Hernandez</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Support</a>
-          <span className="page-footer-divider">|</span>
-          <a href="#" className="page-footer-link">Facebook</a>
-        </div>
-      </footer>
+      <Footer />
 
       {/* Edit / Add modal */}
       {editTarget && (
