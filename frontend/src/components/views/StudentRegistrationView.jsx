@@ -127,6 +127,22 @@ const STEPS = [
   { id: 5, label: 'Review' }
 ];
 
+const FUNNY_CONTACT_NAMES = [
+  'e.g. Mary G. Piattos',
+  'e.g. Andy Lim',
+  'e.g. Don T. Piang',
+  'e.g. Jay T. Kamote',
+  'e.g. Matthew N. Keso',
+  'e.g. Nova B. Santos',
+  'e.g. Gol D. Roger',
+  'e.g. Patty T. Ting',
+  'e.g. Mico A. Harina',
+  'e.g. Walter H. White',
+  'e.g. Alejandro Y. Pikit',
+  'e.g. Beverly C. Pampano',
+  'e.g. Tanya C. Markova'
+];
+
 export default function StudentRegistrationView({ onBack }) {
   // Theme state: light by default as requested
   const [theme, setTheme] = useState('light');
@@ -142,6 +158,11 @@ export default function StudentRegistrationView({ onBack }) {
   const [dobMonth, setDobMonth] = useState('');
   const [dobDay, setDobDay] = useState('');
   const [dobYear, setDobYear] = useState('');
+
+  // Random funny placeholder for emergency contact person (fixed per student entry)
+  const [funnyNameIndex, setFunnyNameIndex] = useState(() =>
+    Math.floor(Math.random() * FUNNY_CONTACT_NAMES.length)
+  );
 
   // ── Live Visitor Heartbeat for Accurate Dashboard Metrics ────────────────
   useEffect(() => {
@@ -213,7 +234,7 @@ export default function StudentRegistrationView({ onBack }) {
     lastName: '',
     studentNumber: '',
     email: '',
-    gender: 'Male',
+    gender: '',
     birthDate: '', // YYYY-MM-DD
     residentialAddress: '',
 
@@ -244,15 +265,19 @@ export default function StudentRegistrationView({ onBack }) {
   }, []);
 
   const selectedOrg = useMemo(() => {
-    return ORGANIZATIONS.find((o) => o.code === formData.org) || ORGANIZATIONS[0];
+    return ORGANIZATIONS.find((o) => o.code === formData.org) || null;
   }, [formData.org]);
 
+  // Fallback for color/theme accents before an organization is selected
+  const themeOrg = selectedOrg || ORGANIZATIONS[0];
+
   const selectedCourse = useMemo(() => {
-    return selectedOrg.courses.find((c) => c.code === formData.course) || selectedOrg.courses[0];
+    if (!selectedOrg) return null;
+    return selectedOrg.courses.find((c) => c.code === formData.course) || null;
   }, [selectedOrg, formData.course]);
 
   const availableSections = useMemo(() => {
-    return SECTIONS_BY_YEAR[formData.yearLevel] || ['1-1'];
+    return formData.yearLevel ? (SECTIONS_BY_YEAR[formData.yearLevel] || []) : [];
   }, [formData.yearLevel]);
 
   // Calculate days in selected month and year
@@ -338,23 +363,22 @@ export default function StudentRegistrationView({ onBack }) {
 
   // Select organization
   const handleSelectOrg = (orgCode) => {
-    const targetOrg = ORGANIZATIONS.find((o) => o.code === orgCode);
-    const defaultCourse = targetOrg?.courses[0]?.code || '';
     setFormData((prev) => ({
       ...prev,
       org: orgCode,
-      course: defaultCourse
+      course: ''
     }));
+    if (stepError) setStepError('');
   };
 
   // Change Year Level
   const handleYearLevelChange = (year) => {
-    const defaultSec = SECTIONS_BY_YEAR[year]?.[0] || '1-1';
     setFormData((prev) => ({
       ...prev,
       yearLevel: year,
-      section: defaultSec
+      section: ''
     }));
+    if (stepError) setStepError('');
   };
 
   // "Same as Residential" address toggle
@@ -413,43 +437,43 @@ export default function StudentRegistrationView({ onBack }) {
     if (theme === 'dark') {
       // Dark mode: sleek blend of black with a subtle tint and border of the org color
       return {
-        background: `linear-gradient(135deg, color-mix(in srgb, ${selectedOrg.color} 26%, #08080B) 0%, #0d0d12 60%, color-mix(in srgb, ${selectedOrg.color} 14%, #040406) 100%)`,
-        borderBottom: `1px solid color-mix(in srgb, ${selectedOrg.color} 45%, rgba(255,255,255,0.08))`,
+        background: `linear-gradient(135deg, color-mix(in srgb, ${themeOrg.color} 26%, #08080B) 0%, #0d0d12 60%, color-mix(in srgb, ${themeOrg.color} 14%, #040406) 100%)`,
+        borderBottom: `1px solid color-mix(in srgb, ${themeOrg.color} 45%, rgba(255,255,255,0.08))`,
         boxShadow: '0 4px 25px rgba(0, 0, 0, 0.4)'
       };
     } else {
       // Light mode: full vibrant organization branding
       return {
-        background: `linear-gradient(135deg, ${selectedOrg.color} 0%, color-mix(in srgb, ${selectedOrg.color} 80%, #000000) 100%)`,
+        background: `linear-gradient(135deg, ${themeOrg.color} 0%, color-mix(in srgb, ${themeOrg.color} 80%, #000000) 100%)`,
         borderBottom: '1px solid rgba(0, 0, 0, 0.15)',
         boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
       };
     }
-  }, [theme, selectedOrg.color]);
+  }, [theme, themeOrg.color]);
 
   // ── Dynamic Main Page Background Style & Org Theming Variables ──────────
   const pageBgStyle = useMemo(() => {
-    const focusRing = `color-mix(in srgb, ${selectedOrg.color} 24%, transparent)`;
+    const focusRing = `color-mix(in srgb, ${themeOrg.color} 24%, transparent)`;
     if (theme === 'dark') {
       // Dark Mode: Deep dark canvas with an ambient radial tint of the active org color
       return {
-        background: `radial-gradient(ellipse at 50% 0%, color-mix(in srgb, ${selectedOrg.color} 24%, #040406) 0%, #08080C 55%, #020204 100%)`,
+        background: `radial-gradient(ellipse at 50% 0%, color-mix(in srgb, ${themeOrg.color} 24%, #040406) 0%, #08080C 55%, #020204 100%)`,
         transition: 'background 0.4s ease',
-        '--sreg-org-color': selectedOrg.color,
-        '--sreg-input-focus-border': selectedOrg.color,
+        '--sreg-org-color': themeOrg.color,
+        '--sreg-input-focus-border': themeOrg.color,
         '--sreg-input-focus-ring': focusRing
       };
     } else {
       // Light Mode: Clean legacy neutral canvas infused with subtle org tone
       return {
-        background: `linear-gradient(125deg, color-mix(in srgb, ${selectedOrg.color} 6%, #DDE0E5) 0%, #F5F4F2 35%, color-mix(in srgb, ${selectedOrg.color} 7%, #EAE7E4) 75%, color-mix(in srgb, ${selectedOrg.color} 5%, #D7DAE0) 100%)`,
+        background: `linear-gradient(125deg, color-mix(in srgb, ${themeOrg.color} 6%, #DDE0E5) 0%, #F5F4F2 35%, color-mix(in srgb, ${themeOrg.color} 7%, #EAE7E4) 75%, color-mix(in srgb, ${themeOrg.color} 5%, #D7DAE0) 100%)`,
         transition: 'background 0.4s ease',
-        '--sreg-org-color': selectedOrg.color,
-        '--sreg-input-focus-border': selectedOrg.color,
+        '--sreg-org-color': themeOrg.color,
+        '--sreg-input-focus-border': themeOrg.color,
         '--sreg-input-focus-ring': focusRing
       };
     }
-  }, [theme, selectedOrg.color]);
+  }, [theme, themeOrg.color]);
 
   // ── Camera Modal & Stream Handlers ───────────────────────────────────────
   const stopCameraStream = () => {
@@ -831,10 +855,11 @@ export default function StudentRegistrationView({ onBack }) {
       if (!formData.lastName.trim()) return 'Last name is required.';
       if (!formData.studentNumber.trim()) return 'Student number is required.';
       if (!formData.email.trim()) return 'Email address is required.';
-      // QoL 5: Only Gmail accounts allowed
-      if (!/^[a-zA-Z0-9._%+\-]+@gmail\.com$/i.test(formData.email.trim())) {
-        return 'Only Gmail addresses are accepted (e.g. name@gmail.com).';
+      // Valid email address format (accepts all providers: Gmail, Yahoo, Outlook, PUP webmail, etc.)
+      if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/i.test(formData.email.trim())) {
+        return 'Please enter a valid email address (e.g. name@example.com).';
       }
+      if (!formData.gender) return 'Gender is required.';
       if (!formData.birthDate) return 'Complete date of birth (Month, Day, Year) is required.';
       if (!formData.residentialAddress.trim()) return 'Residential address is required.';
     } else if (step === 3) {
@@ -897,7 +922,7 @@ export default function StudentRegistrationView({ onBack }) {
       lastName: '',
       studentNumber: '',
       email: '',
-      gender: 'Male',
+      gender: '',
       birthDate: '',
       residentialAddress: '',
       contactPersonName: '',
@@ -917,6 +942,14 @@ export default function StudentRegistrationView({ onBack }) {
     setIsSubmitting(false);
     setSubmissionResponse(null);
     setStepError('');
+    // Refresh to a new random funny placeholder for the next entry
+    setFunnyNameIndex((prev) => {
+      let next;
+      do {
+        next = Math.floor(Math.random() * FUNNY_CONTACT_NAMES.length);
+      } while (next === prev && FUNNY_CONTACT_NAMES.length > 1);
+      return next;
+    });
   };
 
   // ── ID Card Live Preview Formatters (1:1 with Legacy System) ───────────────
@@ -934,7 +967,7 @@ export default function StudentRegistrationView({ onBack }) {
     ? formData.studentNumber.toUpperCase()
     : '202X-XXXXX-BN-X';
 
-  const previewCourseFullName = selectedCourse?.name || 'Bachelor of Science in Computer Engineering';
+  const previewCourseFullName = selectedCourse?.name || 'DEGREE PROGRAM';
 
   // Format DOB as MM/DD/YYYY for legacy card back
   const previewFormattedDob = useMemo(() => {
@@ -998,13 +1031,13 @@ export default function StudentRegistrationView({ onBack }) {
           <div
             className="sreg-card-header"
             style={{
-              backgroundImage: selectedOrg?.headerImg ? `url('${selectedOrg.headerImg}')` : undefined,
-              backgroundColor: selectedOrg?.color || '#800000'
+              backgroundImage: (selectedOrg?.headerImg || ORGANIZATIONS[0].headerImg) ? `url('${selectedOrg?.headerImg || ORGANIZATIONS[0].headerImg}')` : undefined,
+              backgroundColor: themeOrg.color
             }}
           >
-            <img src={selectedOrg.logo} alt={selectedOrg.code} className="sreg-card-header-logo" />
+            <img src={themeOrg.logo} alt={themeOrg.code} className="sreg-card-header-logo" />
             <div className="sreg-card-header-text">
-              Registration Form — {selectedOrg.code}
+              {selectedOrg ? `Registration Form — ${selectedOrg.code}` : 'Registration Form — ACES'}
             </div>
           </div>
 
@@ -1016,14 +1049,14 @@ export default function StudentRegistrationView({ onBack }) {
                     className="sreg-step-track-progress"
                     style={{
                       width: `calc((100% - 50px) * ${(currentStep - 1) / (STEPS.length - 1)})`,
-                      backgroundColor: selectedOrg.color
+                      backgroundColor: themeOrg.color
                     }}
                   />
                   <div className="sreg-step-dots">
                     {STEPS.map((s) => {
                       const isActive = s.id === currentStep;
                       const isCompleted = s.id < currentStep;
-                      const dotColor = (isActive || isCompleted) ? selectedOrg.color : undefined;
+                      const dotColor = (isActive || isCompleted) ? themeOrg.color : undefined;
                       return (
                         <div key={s.id} className="sreg-step-dot-wrap">
                           <div
@@ -1081,9 +1114,17 @@ export default function StudentRegistrationView({ onBack }) {
                           className="sreg-custom-dropdown-btn"
                           onClick={() => setIsOrgOpen((prev) => !prev)}
                         >
-                          <img src={selectedOrg.logo} alt={selectedOrg.code} className="sreg-org-logo" />
-                          <span className="sreg-org-btn-code">{selectedOrg.code}</span>
-                          <span className="sreg-org-btn-name">— {selectedOrg.name}</span>
+                          {selectedOrg ? (
+                            <>
+                              <img src={selectedOrg.logo} alt={selectedOrg.code} className="sreg-org-logo" />
+                              <span className="sreg-org-btn-code">{selectedOrg.code}</span>
+                              <span className="sreg-org-btn-name">— {selectedOrg.name}</span>
+                            </>
+                          ) : (
+                            <span className="sreg-org-btn-placeholder">
+                              Select Organization
+                            </span>
+                          )}
                           <CaretDown size={14} className={`sreg-dropdown-caret ${isOrgOpen ? 'open' : ''}`} />
                         </button>
 
@@ -1120,8 +1161,12 @@ export default function StudentRegistrationView({ onBack }) {
                           id="course"
                           value={formData.course}
                           onChange={(e) => handleChange('course', e.target.value)}
+                          disabled={!selectedOrg}
                         >
-                          {selectedOrg.courses.map((c) => (
+                          <option value="">
+                            {selectedOrg ? 'Select Course / Degree Program' : 'Select an organization first'}
+                          </option>
+                          {selectedOrg?.courses.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
                             </option>
@@ -1140,6 +1185,7 @@ export default function StudentRegistrationView({ onBack }) {
                           value={formData.yearLevel}
                           onChange={(e) => handleYearLevelChange(e.target.value)}
                         >
+                          <option value="">Select Year Level</option>
                           {YEAR_LEVELS.map((y) => (
                             <option key={y} value={y}>
                               {y}
@@ -1156,7 +1202,11 @@ export default function StudentRegistrationView({ onBack }) {
                           id="section"
                           value={formData.section}
                           onChange={(e) => handleChange('section', e.target.value)}
+                          disabled={!formData.yearLevel}
                         >
+                          <option value="">
+                            {formData.yearLevel ? 'Select Section' : 'Select a year level first'}
+                          </option>
                           {availableSections.map((sec) => (
                             <option key={sec} value={sec}>
                               {sec}
@@ -1181,7 +1231,7 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="firstName"
                           type="text"
-                          placeholder="e.g. John Benedict"
+                          placeholder="e.g. Juan"
                           value={formData.firstName}
                           onChange={(e) => handleChange('firstName', e.target.value)}
                         />
@@ -1192,7 +1242,7 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="middleName"
                           type="text"
-                          placeholder="e.g. Gomez"
+                          placeholder="e.g. Dela Cruz"
                           value={formData.middleName}
                           onChange={(e) => handleChange('middleName', e.target.value)}
                         />
@@ -1205,7 +1255,7 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="lastName"
                           type="text"
-                          placeholder="e.g. Hernandez"
+                          placeholder="e.g. Santos"
                           value={formData.lastName}
                           onChange={(e) => handleChange('lastName', e.target.value)}
                         />
@@ -1234,7 +1284,7 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="email"
                           type="email"
-                          placeholder="example@gmail.com"
+                          placeholder="name@example.com"
                           value={formData.email}
                           onChange={(e) => handleChange('email', e.target.value)}
                         />
@@ -1251,6 +1301,7 @@ export default function StudentRegistrationView({ onBack }) {
                           value={formData.gender}
                           onChange={(e) => handleChange('gender', e.target.value)}
                         >
+                          <option value="">Select Gender</option>
                           <option value="Male">Male</option>
                           <option value="Female">Female</option>
                           <option value="Prefer not to say">Prefer not to say</option>
@@ -1335,7 +1386,7 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="contactPersonName"
                           type="text"
-                          placeholder="e.g. Maria G. Hernandez"
+                          placeholder={FUNNY_CONTACT_NAMES[funnyNameIndex]}
                           value={formData.contactPersonName}
                           onChange={(e) => handleChange('contactPersonName', e.target.value)}
                         />
@@ -1392,7 +1443,7 @@ export default function StudentRegistrationView({ onBack }) {
 
                     {/* General Officer Assistance Guideline Notice (No Iriun mention) */}
                     <div className="sreg-officer-banner">
-                      <div className="sreg-officer-banner-icon" style={{ color: selectedOrg.color }}>
+                      <div className="sreg-officer-banner-icon" style={{ color: themeOrg.color }}>
                         <ShieldCheck size={22} weight="bold" />
                       </div>
                       <div className="sreg-officer-banner-text">
@@ -1408,7 +1459,7 @@ export default function StudentRegistrationView({ onBack }) {
                       <div className="sreg-media-card">
                         <div className="sreg-media-card-header">
                           <div className="sreg-media-card-title-wrap">
-                            <Camera size={18} weight="bold" style={{ color: selectedOrg.color }} />
+                            <Camera size={18} weight="bold" style={{ color: themeOrg.color }} />
                             <span className="sreg-media-card-title">
                               Student ID Photo <span className="req">*</span>
                             </span>
@@ -1436,7 +1487,7 @@ export default function StudentRegistrationView({ onBack }) {
                               type="button"
                               className="sreg-compact-btn-primary"
                               onClick={openCameraModal}
-                              style={{ backgroundColor: selectedOrg.color }}
+                              style={{ backgroundColor: themeOrg.color }}
                               title="Open live camera"
                             >
                               <Camera size={15} weight="bold" />
@@ -1476,7 +1527,7 @@ export default function StudentRegistrationView({ onBack }) {
                       <div className="sreg-media-card">
                         <div className="sreg-media-card-header">
                           <div className="sreg-media-card-title-wrap">
-                            <PencilSimpleLine size={18} weight="bold" style={{ color: selectedOrg.color }} />
+                            <PencilSimpleLine size={18} weight="bold" style={{ color: themeOrg.color }} />
                             <span className="sreg-media-card-title">
                               Digital Signature <span className="req">*</span>
                             </span>
@@ -1508,7 +1559,7 @@ export default function StudentRegistrationView({ onBack }) {
                               type="button"
                               className="sreg-compact-btn-primary"
                               onClick={openSignatureModal}
-                              style={{ backgroundColor: selectedOrg.color }}
+                              style={{ backgroundColor: themeOrg.color }}
                               title="Open dedicated digital signature pad"
                             >
                               <PencilSimpleLine size={15} weight="bold" />
@@ -1540,7 +1591,7 @@ export default function StudentRegistrationView({ onBack }) {
                 {/* ── Step 5: Review & Submit (Legacy 1:1 Match) ───────────── */}
                 {currentStep === 5 && (
                   <div>
-                    <h3 className="sreg-step-title" style={{ color: selectedOrg.color }}>
+                    <h3 className="sreg-step-title" style={{ color: themeOrg.color }}>
                       Review Registration
                     </h3>
 
@@ -1610,7 +1661,7 @@ export default function StudentRegistrationView({ onBack }) {
                       type="button"
                       className="sreg-btn-next"
                       onClick={handleNext}
-                      style={{ backgroundColor: selectedOrg.color, borderColor: selectedOrg.color }}
+                      style={{ backgroundColor: themeOrg.color, borderColor: themeOrg.color }}
                     >
                       Next Step
                     </button>
@@ -1621,8 +1672,8 @@ export default function StudentRegistrationView({ onBack }) {
                       onClick={handleSubmit}
                       disabled={!formData.certified || isSubmitting}
                       style={{
-                        backgroundColor: selectedOrg.color,
-                        borderColor: selectedOrg.color,
+                        backgroundColor: themeOrg.color,
+                        borderColor: themeOrg.color,
                         opacity: (!formData.certified || isSubmitting) ? 0.6 : 1,
                         cursor: (!formData.certified || isSubmitting) ? 'not-allowed' : 'pointer'
                       }}
@@ -1741,7 +1792,7 @@ export default function StudentRegistrationView({ onBack }) {
             {/* Modal Header */}
             <div className="sreg-cam-modal-header">
               <div className="sreg-cam-modal-title-wrap">
-                <VideoCamera size={20} weight="bold" style={{ color: selectedOrg.color }} />
+                <VideoCamera size={20} weight="bold" style={{ color: themeOrg.color }} />
                 <span className="sreg-cam-modal-title">Live ID Photo Capture</span>
               </div>
 
@@ -1835,7 +1886,7 @@ export default function StudentRegistrationView({ onBack }) {
                     type="button"
                     className="sreg-cam-snap-btn"
                     onClick={snapPhoto}
-                    style={{ backgroundColor: selectedOrg.color }}
+                    style={{ backgroundColor: themeOrg.color }}
                   >
                     <Camera size={18} weight="fill" />
                     <span>Capture Photo</span>
@@ -1854,7 +1905,7 @@ export default function StudentRegistrationView({ onBack }) {
                       type="button"
                       className="sreg-cam-confirm-btn"
                       onClick={confirmPhoto}
-                      style={{ backgroundColor: selectedOrg.color }}
+                      style={{ backgroundColor: themeOrg.color }}
                     >
                       <CheckCircle size={17} weight="bold" />
                       <span>Crop & Use Photo</span>
@@ -1876,7 +1927,7 @@ export default function StudentRegistrationView({ onBack }) {
           >
             <div className="sreg-cropper-modal-header">
               <div className="sreg-cropper-modal-title-wrap">
-                <Crop size={20} weight="bold" style={{ color: selectedOrg.color }} />
+                <Crop size={20} weight="bold" style={{ color: themeOrg.color }} />
                 <div>
                   <span className="sreg-cropper-modal-title">Crop ID Photo</span>
                   <span className="sreg-cropper-modal-spec">1500 × 1500 px Standard</span>
@@ -1992,7 +2043,7 @@ export default function StudentRegistrationView({ onBack }) {
                 type="button"
                 className="sreg-cam-confirm-btn"
                 onClick={handleApplyCrop}
-                style={{ backgroundColor: selectedOrg.color }}
+                style={{ backgroundColor: themeOrg.color }}
               >
                 <CheckCircle size={16} weight="bold" />
                 <span>Apply Crop (1500 × 1500)</span>
@@ -2011,7 +2062,7 @@ export default function StudentRegistrationView({ onBack }) {
           >
             <div className="sreg-sig-modal-header">
               <div className="sreg-sig-modal-title-wrap">
-                <PencilSimpleLine size={20} weight="bold" style={{ color: selectedOrg.color }} />
+                <PencilSimpleLine size={20} weight="bold" style={{ color: themeOrg.color }} />
                 <div>
                   <span className="sreg-sig-modal-title">Student Digital Signature Pad</span>
                   <span className="sreg-sig-modal-spec">2000 × 1200 px · Pure White Background</span>
@@ -2042,7 +2093,7 @@ export default function StudentRegistrationView({ onBack }) {
                       type="button"
                       className={`sreg-sig-pill ${sigBrushSize === p.size ? 'active' : ''}`}
                       onClick={() => setSigBrushSize(p.size)}
-                      style={sigBrushSize === p.size ? { backgroundColor: selectedOrg.color, borderColor: selectedOrg.color, color: '#FFF' } : {}}
+                      style={sigBrushSize === p.size ? { backgroundColor: themeOrg.color, borderColor: themeOrg.color, color: '#FFF' } : {}}
                     >
                       {p.label}
                     </button>
@@ -2129,7 +2180,7 @@ export default function StudentRegistrationView({ onBack }) {
                   type="button"
                   className="sreg-cam-confirm-btn"
                   onClick={handleSaveModalSignature}
-                  style={{ backgroundColor: selectedOrg.color }}
+                  style={{ backgroundColor: themeOrg.color }}
                 >
                   <CheckCircle size={16} weight="bold" />
                   <span>Confirm & Save Signature</span>
@@ -2163,8 +2214,8 @@ export default function StudentRegistrationView({ onBack }) {
                 style={{
                   minWidth: 120,
                   justifyContent: 'center',
-                  backgroundColor: selectedOrg.color,
-                  borderColor: selectedOrg.color
+                  backgroundColor: themeOrg.color,
+                  borderColor: themeOrg.color
                 }}
               >
                 Okay

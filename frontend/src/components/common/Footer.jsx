@@ -15,6 +15,7 @@ export default function Footer({ className = '' }) {
 
       <div className="synapse-footer-right">
         <div className="synapse-dev-credits">
+          <span>Developed by JB Hernandez</span>
           <a
             href="https://www.linkedin.com/in/jbhcontact/"
             target="_blank"
@@ -33,7 +34,7 @@ export default function Footer({ className = '' }) {
           >
             <GithubLogo size={16} weight="fill" />
           </a>
-          <span>Developed by JB Hernandez</span>
+          
         </div>
 
         <span className="synapse-footer-divider">|</span>
