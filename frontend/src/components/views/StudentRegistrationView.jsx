@@ -1370,19 +1370,8 @@ export default function StudentRegistrationView({ onBack }) {
                               title="Open live camera"
                             >
                               <Camera size={15} weight="bold" />
-                              <span>{formData.photoUrl ? 'Retake Photo' : 'Capture via Camera'}</span>
+                              <span>{formData.photoUrl ? 'Retake' : 'Capture via Camera'}</span>
                             </button>
-
-                            <label className="sreg-compact-btn-secondary" title="Upload from files">
-                              <UploadSimple size={15} />
-                              <span>Upload</span>
-                              <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/jpeg,image/png,image/jpg"
-                                onChange={handlePhotoUpload}
-                              />
-                            </label>
 
                             {formData.photoUrl && (
                               <>
@@ -2092,28 +2081,6 @@ export default function StudentRegistrationView({ onBack }) {
             <p className="sreg-success-sub">
               Your student record has been received and queued for administrative review.
             </p>
-
-            <div style={{
-              background: 'rgba(0, 0, 0, 0.25)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: 8,
-              padding: '12px 16px',
-              margin: '16px 0',
-              textAlign: 'left',
-              fontSize: '0.8rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4
-            }}>
-              <div><strong>Student:</strong> {previewFullName}</div>
-              <div><strong>Student Number:</strong> {formData.studentNumber}</div>
-              <div><strong>Program:</strong> {formData.course} ({formData.yearLevel} - {formData.section})</div>
-              {submissionResponse?.registration_id && (
-                <div style={{ color: '#E00000', marginTop: 4 }}>
-                  <strong>Reference ID:</strong> {submissionResponse.registration_id}
-                </div>
-              )}
-            </div>
 
             <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
               <button

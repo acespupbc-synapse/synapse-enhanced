@@ -445,36 +445,62 @@
   max-width: 600px;
 }
 
-/* Custom button toggle */
-.custom-toggle-btn {
-  padding: 6px 18px;
+/* ── Settings Open/Close Pill Toggle ── */
+.settings-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 94px;
+  height: 35px;
   border-radius: 9999px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-family: inherit;
+  border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  outline: none;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.custom-toggle-btn.open {
-  background: rgba(16, 185, 129, 0.2);
-  color: #34D399;
-  border-color: rgba(16, 185, 129, 0.4);
+.settings-toggle-pill.open {
+  background: #16A34A;
+  padding: 3px 5px 3px 15px;
+  color: #FFFFFF;
 }
 
-.custom-toggle-btn.open:hover {
-  background: rgba(16, 185, 129, 0.3);
+.settings-toggle-pill.open:hover {
+  background: #15803D;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.45);
 }
 
-.custom-toggle-btn.closed {
-  background: rgba(220, 38, 38, 0.2);
-  color: #F87171;
-  border-color: rgba(220, 38, 38, 0.4);
+.settings-toggle-pill.closed {
+  background: #7B0000;
+  padding: 3px 15px 3px 5px;
+  color: #FFFFFF;
 }
 
-.custom-toggle-btn.closed:hover {
-  background: rgba(220, 38, 38, 0.3);
+.settings-toggle-pill.closed:hover {
+  background: #990000;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(123, 0, 0, 0.45);
+}
+
+.settings-toggle-pill .toggle-pill-text {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #FFFFFF;
+  line-height: 1;
+}
+
+.settings-toggle-pill .toggle-pill-knob {
+  width: 25px;
+  height: 25px;
+  background-color: #FFFFFF;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
 }
 
 /* Standard Switch */
@@ -628,17 +654,23 @@ input:checked + .slider:before {
   gap: 8px;
   padding: 9px 16px;
   border-radius: 8px;
-  background: #EF4444;
-  border: none;
+  background: #7B0000;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #FFFFFF;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #DC2626;
+  background: #990000;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(123, 0, 0, 0.35);
+}
+
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-link-action {

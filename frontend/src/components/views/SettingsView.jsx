@@ -289,7 +289,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
     setShowDangerModal(false);
     setDangerConfirmText('');
     if (onShowToast) {
-      onShowToast('Soft-deleted records and cache purged.');
+      onShowToast('Soft-deleted records permanently deleted.');
     }
   };
 
@@ -393,11 +393,21 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                   </div>
                   <button
                     type="button"
-                    className={`custom-toggle-btn ${portalConfig.isOpen ? 'open' : 'closed'}`}
+                    className={`settings-toggle-pill ${portalConfig.isOpen ? 'open' : 'closed'}`}
                     onClick={handleRequestTogglePortal}
                     title="Change registration portal status (requires password)"
                   >
-                    <span>{portalConfig.isOpen ? 'OPEN' : 'CLOSED'}</span>
+                    {portalConfig.isOpen ? (
+                      <>
+                        <span className="toggle-pill-text">OPEN</span>
+                        <span className="toggle-pill-knob" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="toggle-pill-knob" />
+                        <span className="toggle-pill-text">CLOSED</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -694,7 +704,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                 <div className="settings-card-header">
                   <div>
                     <span className="settings-card-kicker" style={{ color: '#EF4444' }}>DANGER ZONE</span>
-                    <h2 className="settings-card-title">Maintenance &amp; Data Purge</h2>
+                    <h2 className="settings-card-title">Maintenance &amp; Data Cleanup</h2>
                     <p className="settings-card-desc">
                       Destructive operations. Please ensure a complete archive is downloaded before proceeding.
                     </p>
@@ -707,7 +717,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                       Clear Soft-Deleted Records
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
-                      Permanently purge records currently residing in the Recycle Bin.
+                      Permanently delete records currently residing in the Recycle Bin.
                     </div>
                   </div>
 
@@ -717,7 +727,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                     onClick={() => setShowDangerModal(true)}
                   >
                     <Trash size={16} />
-                    <span>Purge Recycle Bin</span>
+                    <span>Empty Recycle Bin</span>
                   </button>
                 </div>
               </section>
@@ -857,14 +867,14 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
         </div>
       )}
 
-      {/* ── Modal: Danger Zone Purge ─────────────────────────────────────────── */}
+      {/* ── Modal: Danger Zone Empty Recycle Bin ──────────────────────────── */}
       {showDangerModal && (
         <div className="settings-modal-overlay" role="dialog" aria-modal="true">
           <div className="settings-modal-dialog">
             <div className="settings-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#EF4444' }}>
                 <WarningCircle size={24} weight="bold" />
-                <h3 className="settings-modal-title">Confirm Purge Action</h3>
+                <h3 className="settings-modal-title">Empty Recycle Bin</h3>
               </div>
               <button
                 type="button"
@@ -905,7 +915,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                 onClick={handleExecuteDangerAction}
                 style={{ opacity: dangerConfirmText === 'DELETE' ? 1 : 0.5 }}
               >
-                Confirm Purge
+                Empty Recycle Bin
               </button>
             </div>
           </div>

@@ -189,7 +189,7 @@ export default function RecycleBinView() {
                             onClick={() => setPurgeTarget(record)}
                           >
                             <Trash size={13} weight="fill" />
-                            Purge
+                            Delete
                           </button>
                         </div>
                       </td>
@@ -202,7 +202,7 @@ export default function RecycleBinView() {
             {/* Info strip */}
             <div className="recycle-info-strip">
               <Warning size={14} weight="fill" />
-              Purged records are permanently deleted and cannot be recovered. Restore records to reinstate them in the active student registry.
+              Deleted records are permanently deleted and cannot be recovered. Restore records to reinstate them in the active student registry.
             </div>
           </>
         )}

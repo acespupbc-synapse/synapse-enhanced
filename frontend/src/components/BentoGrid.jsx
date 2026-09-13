@@ -203,9 +203,18 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
         <div className="metric-card toggle-metric-card" title="Registration status can only be modified in Settings">
           <span className="metric-label">Registration:</span>
           <div className="toggle-switch-container">
-            <div className={`custom-toggle-static ${registrationOpen ? 'open' : 'closed'}`}>
-              <span className="toggle-static-dot" />
-              <span className="toggle-text">{registrationOpen ? 'OPEN' : 'CLOSED'}</span>
+            <div className={`dashboard-toggle-pill ${registrationOpen ? 'open' : 'closed'}`}>
+              {registrationOpen ? (
+                <>
+                  <span className="toggle-pill-text">OPEN</span>
+                  <span className="toggle-pill-knob" />
+                </>
+              ) : (
+                <>
+                  <span className="toggle-pill-knob" />
+                  <span className="toggle-pill-text">CLOSED</span>
+                </>
+              )}
             </div>
           </div>
         </div>
