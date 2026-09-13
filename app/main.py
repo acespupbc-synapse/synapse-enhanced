@@ -72,11 +72,23 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
+    import shutil
+    import subprocess
+    java_cmd = shutil.which("java")
+    odbc_drivers = []
+    try:
+        import pyodbc
+        odbc_drivers = pyodbc.drivers()
+    except Exception:
+        pass
     return {
         "status": "healthy",
         "service": "aces-synapse-enhanced",
         "version": "2.2.0",
         "database": "supabase-postgresql",
+        "platform": sys.platform,
+        "java_cmd": java_cmd,
+        "odbc_drivers": odbc_drivers,
     }
 
 
