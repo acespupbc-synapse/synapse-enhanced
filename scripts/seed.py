@@ -13,6 +13,14 @@ import asyncio
 import sys
 import os
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..")))
 
 from dotenv import load_dotenv
@@ -25,6 +33,7 @@ from app.core.config import get_settings
 from app.core.security import hash_password
 from app.models.admin_user import AdminUser
 from app.models.config import AcademicYear, Organization, Course, Section, SystemSettings
+from app.models.student import Student
 from app.core.database import Base
 
 settings = get_settings()

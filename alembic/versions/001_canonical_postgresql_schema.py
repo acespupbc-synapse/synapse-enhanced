@@ -20,7 +20,14 @@ depends_on = None
 
 def upgrade() -> None:
     # ── registration_status_enum ─────────────────────────────────────────────
-    op.execute("CREATE TYPE registration_status_enum AS ENUM ('PENDING', 'APPROVED', 'REJECTED')")
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'registration_status_enum') THEN
+                CREATE TYPE registration_status_enum AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+            END IF;
+        END$$;
+    """)
 
     # ── academic_years ────────────────────────────────────────────────────────
     op.create_table(
@@ -90,7 +97,7 @@ def upgrade() -> None:
         'students',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
         sa.Column('student_number', sa.String(30), nullable=False, unique=True),
-        sa.Column('status', sa.Enum('PENDING', 'APPROVED', 'REJECTED', name='registration_status_enum', create_type=False), nullable=False, server_default='PENDING'),
+        sa.Column('status', postgresql.ENUM('PENDING', 'APPROVED', 'REJECTED', name='registration_status_enum', create_type=False), nullable=False, server_default='PENDING'),
 
         # Personal Info
         sa.Column('first_name', sa.String(100), nullable=False),
