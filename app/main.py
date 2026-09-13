@@ -27,7 +27,10 @@ settings_cfg = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: nothing to do for now (migrations run via alembic CLI)
+    # Startup: on Linux, warm up headless JRE for MDB generation in the background
+    if sys.platform != "win32":
+        from app.core.mdb_generator import ensure_linux_jre
+        asyncio.create_task(asyncio.to_thread(ensure_linux_jre))
     yield
     # Shutdown: close engine connections
     from app.core.database import engine
@@ -72,15 +75,9 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    import shutil
-    import subprocess
-    java_cmd = shutil.which("java")
-    odbc_drivers = []
-    try:
-        import pyodbc
-        odbc_drivers = pyodbc.drivers()
-    except Exception:
-        pass
+    from app.core.mdb_generator import get_java_executable, is_mdb_driver_available
+    java_cmd = get_java_executable()
+    odbc_available = is_mdb_driver_available()
     return {
         "status": "healthy",
         "service": "aces-synapse-enhanced",
@@ -88,7 +85,8 @@ async def health_check():
         "database": "supabase-postgresql",
         "platform": sys.platform,
         "java_cmd": java_cmd,
-        "odbc_drivers": odbc_drivers,
+        "odbc_available": odbc_available,
+        "mdb_engine_ready": bool(odbc_available or java_cmd),
     }
 
 

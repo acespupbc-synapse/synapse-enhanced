@@ -21,3 +21,5 @@ __pycache__/
 # Local scratch and tooling
 scratch/
 .playwright-mcp/
+tools/mdb_writer/lib/
+tools/mdb_writer/*.jar
