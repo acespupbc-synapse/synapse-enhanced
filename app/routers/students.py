@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -114,6 +115,57 @@ def _with_relations():
     )
 
 
+class PublicSectionOut(BaseModel):
+    id: UUID
+    name: str
+    year_level: int
+    model_config = {"from_attributes": True}
+
+
+class PublicProgramOut(BaseModel):
+    code: str
+    name: str
+    org: str
+    sections: list[str]
+    sections_detail: list[PublicSectionOut]
+
+
+# ── Public: Academic Programs & Sections ──────────────────────────────────────
+
+@router.get("/api/students/programs", response_model=list[PublicProgramOut])
+async def get_public_programs(
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Course)
+        .options(selectinload(Course.organization), selectinload(Course.sections))
+        .order_by(Course.code)
+    )
+    courses = result.scalars().all()
+    out = []
+    for c in courses:
+        sorted_secs = sorted(
+            c.sections,
+            key=lambda s: [int(t) if t.isdigit() else t for t in s.name.replace('-', ' ').split()]
+        )
+        sec_names = [s.name for s in sorted_secs]
+        if not sec_names:
+            sec_names = ["1-1"]
+        out.append(
+            PublicProgramOut(
+                code=c.code,
+                name=c.name,
+                org=c.organization.code if c.organization else "",
+                sections=sec_names,
+                sections_detail=[
+                    PublicSectionOut(id=s.id, name=s.name, year_level=s.year_level)
+                    for s in sorted_secs
+                ],
+            )
+        )
+    return out
+
+
 # ── Public: Student Registration ──────────────────────────────────────────────
 
 @router.post("/api/students/register", response_model=RegisterResponse)
@@ -158,6 +210,15 @@ async def register_student(
             )
         )
         section = sec_result.scalar_one_or_none()
+        # If not found by year_level + name, try by name alone in this course
+        if not section:
+            fallback_sec = await db.execute(
+                select(Section).where(
+                    Section.course_id == course.id,
+                    func.upper(Section.name) == payload.section.strip().upper(),
+                )
+            )
+            section = fallback_sec.scalar_one_or_none()
 
     # Active academic year
     ay_result = await db.execute(
@@ -313,9 +374,41 @@ async def update_student(
     update_data = payload.model_dump(exclude_none=True)
     photo_data = update_data.pop("photo_data", None)
     signature_data = update_data.pop("signature_data", None)
+    course_code = update_data.pop("course_code", None)
+    section_name = update_data.pop("section_name", None)
+    birth_date_val = update_data.pop("birth_date", None)
+
+    if birth_date_val:
+        if isinstance(birth_date_val, str):
+            try:
+                student.birth_date = datetime.strptime(birth_date_val.strip(), "%Y-%m-%d").date()
+            except Exception:
+                pass
+        elif isinstance(birth_date_val, date):
+            student.birth_date = birth_date_val
+
+    if course_code:
+        course_res = await db.execute(
+            select(Course).where(func.upper(Course.code) == course_code.strip().upper())
+        )
+        course_obj = course_res.scalar_one_or_none()
+        if course_obj:
+            student.course_id = course_obj.id
+
+    if section_name:
+        sec_res = await db.execute(
+            select(Section).where(
+                func.upper(Section.name) == section_name.strip().upper(),
+                Section.course_id == student.course_id,
+            )
+        )
+        sec_obj = sec_res.scalar_one_or_none()
+        if sec_obj:
+            student.section_id = sec_obj.id
 
     for field, value in update_data.items():
-        setattr(student, field, value)
+        if hasattr(student, field):
+            setattr(student, field, value)
 
     media_name = f"{student.last_name}, {student.first_name}"
     if student.middle_name and student.middle_name.strip():
@@ -337,6 +430,12 @@ async def update_student(
 
     student.updated_at = datetime.now(timezone.utc)
     db.add(student)
+    await db.commit()
+
+    refreshed = await db.execute(
+        select(Student).options(*_with_relations()).where(Student.id == student.id)
+    )
+    student = refreshed.scalar_one()
 
     _bust_cache()
 
@@ -514,7 +613,7 @@ def get_live_visitor_count(window_seconds: float = 35.0) -> int:
     stale = [k for k, t in _live_visitors.items() if t < cutoff]
     for k in stale:
         _live_visitors.pop(k, None)
-    return len(_live_visitors)
+    return max(1, len(_live_visitors))
 
 
 @router.post("/api/students/heartbeat")

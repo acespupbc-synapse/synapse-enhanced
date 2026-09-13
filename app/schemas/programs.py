@@ -29,6 +29,19 @@ class CourseUpdate(BaseModel):
     section_count: Optional[int] = Field(default=None, ge=1, le=15)
 
 
+class SectionItem(BaseModel):
+    id: UUID
+    name: str
+    year_level: int
+    model_config = {"from_attributes": True}
+
+
+class SectionUpdate(BaseModel):
+    program_code: Optional[str] = None
+    year_level: Optional[int] = Field(default=None, ge=1, le=5)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=20)
+
+
 class CourseOut(BaseModel):
     id: UUID
     org: str  # org code (denormalized for frontend)
@@ -36,7 +49,14 @@ class CourseOut(BaseModel):
     name: str
     section_count: int = 1
     sections: list[str] = []
+    sections_detail: list[SectionItem] = []
     model_config = {"from_attributes": True}
+
+
+class SectionCreate(BaseModel):
+    program_code: str = Field(..., description="Program/Course code e.g. BSCpE")
+    year_level: int = Field(default=1, ge=1, le=5)
+    name: str = Field(..., min_length=1, max_length=20, description="Section name e.g. 1-2, 2-1")
 
 
 class SectionOut(BaseModel):

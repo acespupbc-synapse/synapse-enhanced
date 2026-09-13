@@ -2,7 +2,7 @@
 app/schemas/student.py — Pydantic schemas for student registration and management
 """
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -44,8 +44,12 @@ class StudentUpdateRequest(BaseModel):
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
+    student_number: Optional[str] = None
+    course_code: Optional[str] = None
+    section_name: Optional[str] = None
+    year_level: Optional[int] = None
     gender: Optional[str] = None
-    birth_date: Optional[date] = None
+    birth_date: Optional[Union[date, str]] = None
     email: Optional[str] = None
     perm_strt: Optional[str] = None
     perm_bldg: Optional[str] = None

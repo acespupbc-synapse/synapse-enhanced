@@ -264,48 +264,73 @@ export function CropperModal({ isOpen, onClose, imageSrc, onApplyCrop }) {
     dragRef.current.isDragging = false;
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!imageSrc) return;
+
+    let srcToLoad = imageSrc;
+    if (imageSrc.startsWith('http')) {
+      try {
+        const token = localStorage.getItem('synapse_auth_token');
+        const proxyUrl = `/api/admin/media-proxy?url=${encodeURIComponent(imageSrc)}`;
+        const res = await fetch(proxyUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          srcToLoad = URL.createObjectURL(blob);
+        }
+      } catch (err) {
+        console.warn('[CropperModal] Proxy load fallback:', err);
+      }
+    }
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1500;
-      canvas.height = 1500;
-      const ctx = canvas.getContext('2d');
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1500;
+        canvas.height = 1500;
+        const ctx = canvas.getContext('2d');
 
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, 1500, 1500);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 1500, 1500);
 
-      const natW = img.naturalWidth || img.width;
-      const natH = img.naturalHeight || img.height;
+        const natW = img.naturalWidth || img.width;
+        const natH = img.naturalHeight || img.height;
 
-      const baseScale = Math.max(1500 / natW, 1500 / natH);
-      const drawWidth = natW * baseScale;
-      const drawHeight = natH * baseScale;
+        const baseScale = Math.max(1500 / natW, 1500 / natH);
+        const drawWidth = natW * baseScale;
+        const drawHeight = natH * baseScale;
 
-      const scaleRatio = 1500 / 320; // 320 is viewport width
+        const scaleRatio = 1500 / 320; // 320 is viewport width
 
-      ctx.save();
-      ctx.translate(750, 750);
-      ctx.translate(cropOffset.x * scaleRatio, cropOffset.y * scaleRatio);
-      ctx.rotate((cropRotation * Math.PI) / 180);
-      ctx.scale(cropZoom, cropZoom);
+        ctx.save();
+        ctx.translate(750, 750);
+        ctx.translate(cropOffset.x * scaleRatio, cropOffset.y * scaleRatio);
+        ctx.rotate((cropRotation * Math.PI) / 180);
+        ctx.scale(cropZoom, cropZoom);
 
-      ctx.drawImage(
-        img,
-        -drawWidth / 2,
-        -drawHeight / 2,
-        drawWidth,
-        drawHeight
-      );
-      ctx.restore();
+        ctx.drawImage(
+          img,
+          -drawWidth / 2,
+          -drawHeight / 2,
+          drawWidth,
+          drawHeight
+        );
+        ctx.restore();
 
-      const croppedUrl = canvas.toDataURL('image/jpeg', 0.95);
-      onApplyCrop(croppedUrl);
-      onClose();
+        const croppedUrl = canvas.toDataURL('image/jpeg', 0.95);
+        onApplyCrop(croppedUrl);
+        onClose();
+      } catch (cropErr) {
+        console.error('[CropperModal] Canvas crop error:', cropErr);
+      }
     };
-    img.src = imageSrc;
+    img.onerror = (err) => {
+      console.error('[CropperModal] Image load error:', err);
+    };
+    img.src = srcToLoad;
   };
 
   if (!isOpen || !imageSrc) return null;

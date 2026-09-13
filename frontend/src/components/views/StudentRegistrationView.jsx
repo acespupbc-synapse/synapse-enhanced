@@ -44,7 +44,7 @@ const ORGANIZATIONS = [
     color: '#800000',
     courses: [
       { code: 'BSCpE', name: 'Bachelor of Science in Computer Engineering' },
-      { code: 'DCPET', name: 'Diploma in Computer Engineering Technology' }
+      { code: 'DCpET', name: 'Diploma in Computer Engineering Technology' }
     ]
   },
   {
@@ -102,13 +102,14 @@ const ORGANIZATIONS = [
   }
 ];
 
-const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'];
 
 const SECTIONS_BY_YEAR = {
-  '1st Year': ['1-1', '1-2', '1-3'],
-  '2nd Year': ['2-1', '2-2'],
-  '3rd Year': ['3-1', '3-2'],
-  '4th Year': ['4-1', '4-2']
+  '1st Year': ['1-1', '1-2'],
+  '2nd Year': ['2-1'],
+  '3rd Year': ['3-1'],
+  '4th Year': ['4-1'],
+  '5th Year': ['5-1']
 };
 
 const MONTHS = [
@@ -253,6 +254,17 @@ export default function StudentRegistrationView({ onBack }) {
     certified: false
   });
 
+  // Dynamic Programs & Sections from Database (synced live with Admin Programs tab)
+  const [dbPrograms, setDbPrograms] = useState(null);
+
+  useEffect(() => {
+    studentApi.getAcademicPrograms().then((data) => {
+      if (Array.isArray(data) && data.length > 0) {
+        setDbPrograms(data);
+      }
+    }).catch(() => {});
+  }, []);
+
   // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(e) {
@@ -264,21 +276,74 @@ export default function StudentRegistrationView({ onBack }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Merge database programs and sections into organizations
+  const organizations = useMemo(() => {
+    if (!dbPrograms || dbPrograms.length === 0) {
+      return ORGANIZATIONS;
+    }
+    return ORGANIZATIONS.map((org) => {
+      const orgCourses = dbPrograms.filter(
+        (p) => p.org.toUpperCase() === org.code.toUpperCase()
+      );
+      if (orgCourses.length === 0) return org;
+      return {
+        ...org,
+        courses: orgCourses.map((p) => ({
+          code: p.code,
+          name: p.name,
+          sections: p.sections || [],
+          sections_detail: p.sections_detail || [],
+        }))
+      };
+    });
+  }, [dbPrograms]);
+
   const selectedOrg = useMemo(() => {
-    return ORGANIZATIONS.find((o) => o.code === formData.org) || null;
-  }, [formData.org]);
+    return organizations.find((o) => o.code === formData.org) || null;
+  }, [organizations, formData.org]);
 
   // Fallback for color/theme accents before an organization is selected
-  const themeOrg = selectedOrg || ORGANIZATIONS[0];
+  const themeOrg = selectedOrg || organizations[0] || ORGANIZATIONS[0];
 
   const selectedCourse = useMemo(() => {
     if (!selectedOrg) return null;
-    return selectedOrg.courses.find((c) => c.code === formData.course) || null;
+    return selectedOrg.courses.find((c) => c.code.toUpperCase() === formData.course?.toUpperCase()) || null;
   }, [selectedOrg, formData.course]);
 
+  // Dynamically compute available sections for the selected course and year level
   const availableSections = useMemo(() => {
-    return formData.yearLevel ? (SECTIONS_BY_YEAR[formData.yearLevel] || []) : [];
-  }, [formData.yearLevel]);
+    if (!selectedCourse || !formData.yearLevel) return [];
+    const yearInt = parseInt(formData.yearLevel[0], 10) || 1;
+
+    // 1. Check sections_detail from database matching exact year_level
+    if (selectedCourse.sections_detail && selectedCourse.sections_detail.length > 0) {
+      const matched = selectedCourse.sections_detail
+        .filter((s) => Number(s.year_level) === yearInt)
+        .map((s) => s.name);
+      if (matched.length > 0) {
+        return matched.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      }
+    }
+
+    // 2. Filter from sections array matching year prefix (e.g. "1-" or "2-")
+    if (selectedCourse.sections && selectedCourse.sections.length > 0) {
+      const prefixMatched = selectedCourse.sections.filter((s) => s.startsWith(`${yearInt}-`));
+      if (prefixMatched.length > 0) {
+        return prefixMatched.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      }
+      return selectedCourse.sections;
+    }
+
+    // 3. Fallback to baseline sections for that year
+    return SECTIONS_BY_YEAR[formData.yearLevel] || [`${yearInt}-1`];
+  }, [selectedCourse, formData.yearLevel]);
+
+  // If the currently chosen section is not in availableSections, clear it
+  useEffect(() => {
+    if (formData.section && availableSections.length > 0 && !availableSections.includes(formData.section)) {
+      setFormData((prev) => ({ ...prev, section: '' }));
+    }
+  }, [availableSections, formData.section]);
 
   // Calculate days in selected month and year
   const daysInMonth = useMemo(() => {
@@ -295,6 +360,9 @@ export default function StudentRegistrationView({ onBack }) {
     const finalValue = textFields.includes(field) ? value.toUpperCase() : value;
     setFormData((prev) => {
       const updated = { ...prev, [field]: finalValue };
+      if (field === 'course') {
+        updated.section = '';
+      }
       if (field === 'residentialAddress' && prev.sameAddress) {
         updated.contactPersonAddress = finalValue;
       }
@@ -336,25 +404,18 @@ export default function StudentRegistrationView({ onBack }) {
     if (stepError) setStepError('');
   };
 
-  // Modern DOB change handler
+  // Sync date of birth from components
   const handleDobPartChange = (part, value) => {
-    let m = dobMonth;
-    let d = dobDay;
-    let y = dobYear;
+    let m = part === 'month' ? value : dobMonth;
+    let d = part === 'day' ? value : dobDay;
+    let y = part === 'year' ? value : dobYear;
 
-    if (part === 'month') {
-      m = value;
-      setDobMonth(value);
-    } else if (part === 'day') {
-      d = value;
-      setDobDay(value);
-    } else if (part === 'year') {
-      y = value;
-      setDobYear(value);
-    }
+    if (part === 'month') setDobMonth(value);
+    if (part === 'day') setDobDay(value);
+    if (part === 'year') setDobYear(value);
 
     if (m && d && y) {
-      const fullDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      const fullDate = `${y}-${m}-${d}`;
       handleChange('birthDate', fullDate);
     } else {
       handleChange('birthDate', '');
@@ -366,7 +427,8 @@ export default function StudentRegistrationView({ onBack }) {
     setFormData((prev) => ({
       ...prev,
       org: orgCode,
-      course: ''
+      course: '',
+      section: ''
     }));
     if (stepError) setStepError('');
   };

@@ -78,17 +78,77 @@ async def export_csv(
         except Exception:
             continue
 
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    tag = ""
+    # Resolve academic year for filename: {AcademicYear}_{Program}_{Section}.csv
+    ay_str = "2026-2027"
+    if students and students[0].academic_year:
+        ay_str = students[0].academic_year.name.replace("AY ", "").replace("AY", "").strip()
+
     if program and section:
-        tag = f"_{program}_{section}"
+        filename = f"{ay_str}_{program}_{section}.csv"
     elif program:
-        tag = f"_{program}"
-    filename = f"CardFive_MDB_Export{tag}_{date_str}.csv"
+        filename = f"{ay_str}_{program}.csv"
+    else:
+        filename = f"{ay_str}_All_Registrations.csv"
 
     return Response(
         content="\n".join(rows),
         media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ── MDB Export (Bug 2) ────────────────────────────────────────────────────────
+
+@router.get("/mdb")
+async def export_mdb(
+    program: Optional[str] = Query(None),
+    section: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _admin: AdminUser = Depends(get_current_admin),
+):
+    from app.core.config import get_settings
+    from app.core.mdb_generator import generate_mdb_bytes
+    from app.core.r2_storage import _get_client
+
+    students = await _get_active_students(db, program=program, section=section)
+
+    media_cache = {}
+    try:
+        settings_cfg = get_settings()
+        r2_client = _get_client()
+        bucket = settings_cfg.cf_r2_bucket_name
+        for s in students:
+            if s.photo_r2_key and s.photo_r2_key not in media_cache:
+                try:
+                    obj = r2_client.get_object(Bucket=bucket, Key=s.photo_r2_key)
+                    media_cache[s.photo_r2_key] = obj["Body"].read()
+                except Exception:
+                    pass
+            if s.signature_r2_key and s.signature_r2_key not in media_cache:
+                try:
+                    obj = r2_client.get_object(Bucket=bucket, Key=s.signature_r2_key)
+                    media_cache[s.signature_r2_key] = obj["Body"].read()
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[WARN] Failed to fetch media for MDB: {e}")
+
+    mdb_bytes = generate_mdb_bytes(students, media_cache)
+
+    ay_str = "2026-2027"
+    if students and students[0].academic_year:
+        ay_str = students[0].academic_year.name.replace("AY ", "").replace("AY", "").strip()
+
+    if program and section:
+        filename = f"{ay_str}_{program}_{section}.mdb"
+    elif program:
+        filename = f"{ay_str}_{program}.mdb"
+    else:
+        filename = f"{ay_str}_All_Registrations.mdb"
+
+    return Response(
+        content=mdb_bytes,
+        media_type="application/x-msaccess",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
@@ -410,32 +470,63 @@ async def export_archive(
         except Exception as e:
             print(f"[WARN] Archive R2 media bundle: {e}")
 
-        # 5. Write media in structured folders: {ay}/{course}/{section}/PICTURES/ and SIGNATURES/
+        # 5. Group students by (AY, Course, Section) for structured folder export
+        groups = {}
         for s in students:
-            surname = re.sub(r'[^A-Za-z0-9]', '', s.last_name or '').upper()
-            firstname = re.sub(r'[^A-Za-z0-9]', '', s.first_name or '').upper()
-            mi = re.sub(r'[^A-Za-z0-9]', '', (s.middle_name or '')[:1]).upper()
-            name_part = f"{surname}_{firstname}_{mi}".strip('_')
-
             ay_dir = (s.academic_year.name if s.academic_year else "2026-2027").replace("AY", "").strip()
             course_dir = s.course.code if s.course else "BSCpE"
             sec_dir = s.section.name if s.section else "1-1"
+            key = (ay_dir, course_dir, sec_dir)
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(s)
 
-            if s.photo_r2_key and s.photo_r2_key in media_cache:
-                pic_path = f"{ay_dir}/{course_dir}/{sec_dir}/PICTURES/{name_part}__PICTURE.JPG"
-                zf.writestr(pic_path, media_cache[s.photo_r2_key])
+        # Write per-section CSV, MDB, and media into {AY}/{Program}/{Section}/
+        for (ay_dir, course_dir, sec_dir), sec_students in groups.items():
+            folder_prefix = f"{ay_dir}/{course_dir}/{sec_dir}"
+            file_base = f"{ay_dir}_{course_dir}_{sec_dir}"
 
-            if s.signature_r2_key and s.signature_r2_key in media_cache:
-                sig_path = f"{ay_dir}/{course_dir}/{sec_dir}/SIGNATURES/{name_part}__SIGNATURE.JPG"
-                zf.writestr(sig_path, media_cache[s.signature_r2_key])
+            # Section CSV
+            sec_csv_rows = [",".join(csv_headers)]
+            for s in sec_students:
+                try:
+                    record = transform_student_to_mdb_csv(s)
+                    row = [f'"{getattr(record, h, "")}"' for h in csv_headers]
+                    sec_csv_rows.append(",".join(row))
+                except Exception:
+                    continue
+            zf.writestr(f"{folder_prefix}/{file_base}.csv", "\n".join(sec_csv_rows))
 
-        # 6. Include CardFive MDB with Long Binary photo and signature data
+            # Section MDB with binary pictures/signatures
+            try:
+                from app.core.mdb_generator import generate_mdb_bytes
+                sec_mdb_bytes = generate_mdb_bytes(sec_students, media_cache)
+                zf.writestr(f"{folder_prefix}/{file_base}.mdb", sec_mdb_bytes)
+            except Exception as err:
+                print(f"[WARN] Failed to write section MDB for {folder_prefix}: {err}")
+
+            # Section Media: PICTURES/ and SIGNATURES/
+            for s in sec_students:
+                surname = re.sub(r'[^A-Za-z0-9]', '', s.last_name or '').upper()
+                firstname = re.sub(r'[^A-Za-z0-9]', '', s.first_name or '').upper()
+                mi = re.sub(r'[^A-Za-z0-9]', '', (s.middle_name or '')[:1]).upper()
+                name_part = f"{surname}_{firstname}_{mi}".strip('_')
+
+                if s.photo_r2_key and s.photo_r2_key in media_cache:
+                    pic_path = f"{folder_prefix}/PICTURES/{name_part}__PICTURE.JPG"
+                    zf.writestr(pic_path, media_cache[s.photo_r2_key])
+
+                if s.signature_r2_key and s.signature_r2_key in media_cache:
+                    sig_path = f"{folder_prefix}/SIGNATURES/{name_part}__SIGNATURE.JPG"
+                    zf.writestr(sig_path, media_cache[s.signature_r2_key])
+
+        # 6. Master root CardFive MDB containing all records
         try:
             from app.core.mdb_generator import generate_mdb_bytes
             mdb_bytes = generate_mdb_bytes(students, media_cache)
             zf.writestr("CardFive_Database.mdb", mdb_bytes)
         except Exception as err:
-            print(f"[WARN] Failed to write MDB into archive: {err}")
+            print(f"[WARN] Failed to write master MDB into archive: {err}")
 
     zip_buffer.seek(0)
     date_str = datetime.now().strftime("%Y-%m-%d")
@@ -444,56 +535,6 @@ async def export_archive(
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
-# ── Direct CardFive MDB Export Endpoint ───────────────────────────────────────
-
-@router.get("/mdb")
-async def export_mdb(
-    program: Optional[str] = Query(None),
-    section: Optional[str] = Query(None),
-    academic_year: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    _admin: AdminUser = Depends(get_current_admin),
-):
-    """Generate and download CardFive MS Access .MDB file with Long Binary photos & signatures."""
-    from app.core.config import get_settings
-    from app.core.mdb_generator import generate_mdb_bytes
-    from app.core.r2_storage import _get_client
-
-    settings_cfg = get_settings()
-    students = await _get_active_students(db, program, section, academic_year)
-
-    media_cache = {}
-    try:
-        r2_client = _get_client()
-        bucket = settings_cfg.cf_r2_bucket_name
-        for s in students:
-            if s.photo_r2_key and s.photo_r2_key not in media_cache:
-                try:
-                    obj = r2_client.get_object(Bucket=bucket, Key=s.photo_r2_key)
-                    media_cache[s.photo_r2_key] = obj["Body"].read()
-                except Exception:
-                    pass
-            if s.signature_r2_key and s.signature_r2_key not in media_cache:
-                try:
-                    obj = r2_client.get_object(Bucket=bucket, Key=s.signature_r2_key)
-                    media_cache[s.signature_r2_key] = obj["Body"].read()
-                except Exception:
-                    pass
-    except Exception as e:
-        print(f"[WARN] Fetching R2 media for MDB: {e}")
-
-    mdb_bytes = generate_mdb_bytes(students, media_cache)
-
-    tag = f"_{program}_{section}" if (program and section) else (f"_{program}" if program else "")
-    filename = f"CardFive_Export{tag}_{datetime.now().strftime('%Y-%m-%d')}.mdb"
-
-    return StreamingResponse(
-        io.BytesIO(mdb_bytes),
-        media_type="application/x-msaccess",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 

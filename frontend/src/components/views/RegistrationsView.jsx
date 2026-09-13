@@ -19,7 +19,7 @@ import {
   Faders,
   DownloadSimple,
 } from '@phosphor-icons/react';
-import { studentApi, statsApi, exportApi } from '../../services/api';
+import { studentApi, statsApi, exportApi, programsApi } from '../../services/api';
 import { CameraModal, CropperModal, SignatureModal } from '../common/MediaModals';
 import Footer from '../common/Footer';
 import './RegistrationsView.css';
@@ -29,84 +29,140 @@ import './RegistrationsView.css';
 const ORGS = [
   {
     code: 'ACES',
+    name: 'Association of Computer Engineering Students',
     logo: '/img/orgs/aces.png',
+    headerImg: '/img/orgs/aces_header.png',
     header: '/img/orgs/aces_header.png',
+    color: '#800000',
     programs: [
-      { code: 'BSCpE', name: 'Bachelor of Science in Computer Engineering', count: 0 },
-      { code: 'DCpET', name: 'Diploma in Computer Engineering Technology', count: 0 },
+      { code: 'BSCpE', name: 'Bachelor of Science in Computer Engineering' },
+      { code: 'DCpET', name: 'Diploma in Computer Engineering Technology' },
     ],
   },
   {
     code: 'HRSS',
+    name: 'Human Resource Students Society',
     logo: '/img/orgs/hrss.png',
+    headerImg: '/img/orgs/hrss_header.png',
     header: '/img/orgs/hrss_header.png',
+    color: '#c0392b',
     programs: [
-      { code: 'BSBA-HRM', name: 'BS in Business Administration — Human Resource Management', count: 0 },
+      { code: 'BSBA-HRM', name: 'Bachelor of Science in Business Administration Major in Human Resource Management' },
     ],
   },
   {
     code: 'IBITS',
+    name: 'Institute of Bachelors in Information Technology Studies',
     logo: '/img/orgs/ibits.png',
+    headerImg: '/img/orgs/ibits_header.png',
     header: '/img/orgs/ibits_header.png',
+    color: '#058EA3',
     programs: [
-      { code: 'BSIT', name: 'Bachelor of Science in Information Technology', count: 0 },
-      { code: 'DIT', name: 'Diploma in Information Technology', count: 0 },
+      { code: 'BSIT', name: 'Bachelor of Science in Information Technology' },
+      { code: 'DIT', name: 'Diploma in Information Technology' },
     ],
   },
   {
     code: 'PIIE',
+    name: 'Philippine Institute of Industrial Engineers',
     logo: '/img/orgs/piie.png',
+    headerImg: '/img/orgs/piie_header.png',
     header: '/img/orgs/piie_header.png',
+    color: '#16AB68',
     programs: [
-      { code: 'BSIE', name: 'Bachelor of Science in Industrial Engineering', count: 0 },
+      { code: 'BSIE', name: 'Bachelor of Science in Industrial Engineering' },
     ],
   },
   {
     code: 'SMS',
+    name: 'Samahan ng mga Mag-aaral ng Sikolohiya',
     logo: '/img/orgs/sms.png',
+    headerImg: '/img/orgs/sms_header.png',
     header: '/img/orgs/sms_header.png',
+    color: '#4F0580',
     programs: [
-      { code: 'BSPSY', name: 'Bachelor of Science in Psychology', count: 0 },
+      { code: 'BSPSY', name: 'Bachelor of Science in Psychology' },
     ],
   },
   {
     code: 'YES',
+    name: "Young Educators' Society",
     logo: '/img/orgs/yes.png',
+    headerImg: '/img/orgs/yes_header.png',
     header: '/img/orgs/yes_header.png',
+    color: '#090979',
     programs: [
-      { code: 'BSED-ENG', name: 'Bachelor of Secondary Education — English', count: 0 },
-      { code: 'BSED-SS', name: 'Bachelor of Secondary Education — Social Studies', count: 0 },
-      { code: 'BEED', name: 'Bachelor of Elementary Education', count: 0 },
+      { code: 'BSED-ENG', name: 'Bachelor of Secondary Education Major in English' },
+      { code: 'BSED-SS', name: 'Bachelor of Secondary Education Major in Social Studies' },
+      { code: 'BEED', name: 'Bachelor of Elementary Education' },
     ],
   },
 ];
 
-// Sections per year level with dynamic counts from registered students
-function buildSections(progCode, studentList = []) {
-  const baseSections = {
-    'BSCpE':    { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'], '3rd Year': ['3-1'] },
-    'DCpET':    { '1st Year': ['1-1', '1-2'] },
-    'BSBA-HRM': { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
-    'BSIT':     { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1', '2-2'] },
-    'DIT':      { '1st Year': ['1-1', '1-2'] },
-    'BSIE':     { '1st Year': ['1-1'], '2nd Year': ['2-1'], '3rd Year': ['3-1'] },
-    'BSPSY':    { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
-    'BSED-ENG': { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
-    'BSED-SS':  { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
-    'BEED':     { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
-  };
-
-  const template = baseSections[progCode] ?? { '1st Year': ['1-1'] };
+// Sections per year level with dynamic counts from registered students and program database config
+function buildSections(progCode, studentList = [], programData = null) {
   const result = {};
 
-  for (const [year, secs] of Object.entries(template)) {
-    result[year] = secs.map(sec => ({
-      sec,
-      count: studentList.filter(s => {
-        const sSec = s.section || '';
-        return sSec === sec || sSec.endsWith(sec) || sSec === `${progCode} ${sec}`;
-      }).length
-    }));
+  // 1. If programData has sections_detail from the database, group them by year level
+  if (programData?.sections_detail && programData.sections_detail.length > 0) {
+    for (const secItem of programData.sections_detail) {
+      const yearLabel = `${secItem.year_level}${secItem.year_level === 1 ? 'st' : secItem.year_level === 2 ? 'nd' : secItem.year_level === 3 ? 'rd' : 'th'} Year`;
+      if (!result[yearLabel]) result[yearLabel] = [];
+      if (!result[yearLabel].some(s => s.sec === secItem.name)) {
+        result[yearLabel].push({
+          sec: secItem.name,
+          count: studentList.filter(s => {
+            const sSec = s.section || '';
+            return sSec === secItem.name || sSec.endsWith(secItem.name) || sSec === `${progCode} ${secItem.name}`;
+          }).length
+        });
+      }
+    }
+  } else if (programData?.sections && programData.sections.length > 0) {
+    for (const secName of programData.sections) {
+      const yearNum = parseInt(secName[0], 10) || 1;
+      const yearLabel = `${yearNum}${yearNum === 1 ? 'st' : yearNum === 2 ? 'nd' : yearNum === 3 ? 'rd' : 'th'} Year`;
+      if (!result[yearLabel]) result[yearLabel] = [];
+      if (!result[yearLabel].some(s => s.sec === secName)) {
+        result[yearLabel].push({
+          sec: secName,
+          count: studentList.filter(s => {
+            const sSec = s.section || '';
+            return sSec === secName || sSec.endsWith(secName) || sSec === `${progCode} ${secName}`;
+          }).length
+        });
+      }
+    }
+  }
+
+  // 2. Also include any sections found in registered students
+  for (const s of studentList) {
+    const sSec = (s.section || '').replace(/^[A-Za-z-]+\s*/, '').trim();
+    if (!sSec) continue;
+    const yearLabel = s.yearLevel || `${sSec[0] || '1'}${sSec[0] === '1' ? 'st' : sSec[0] === '2' ? 'nd' : sSec[0] === '3' ? 'rd' : 'th'} Year`;
+    if (!result[yearLabel]) result[yearLabel] = [];
+    if (!result[yearLabel].some(item => item.sec === sSec)) {
+      result[yearLabel].push({
+        sec: sSec,
+        count: studentList.filter(st => {
+          const stSec = (st.section || '').replace(/^[A-Za-z-]+\s*/, '').trim();
+          return stSec === sSec;
+        }).length
+      });
+    }
+  }
+
+  // 3. Fallback if still empty
+  if (Object.keys(result).length === 0) {
+    result['1st Year'] = [{
+      sec: '1-1',
+      count: studentList.filter(s => (s.section || '').includes('1-1')).length
+    }];
+  }
+
+  // Sort sections inside each year
+  for (const year of Object.keys(result)) {
+    result[year].sort((a, b) => a.sec.localeCompare(b.sec, undefined, { numeric: true }));
   }
 
   return result;
@@ -210,11 +266,13 @@ export function EditStudentModal({ student, onClose, onSave, onShowToast }) {
   // Save confirmation prompt state
   const [isConfirmPromptOpen, setIsConfirmPromptOpen] = useState(false);
   const [savedRecord, setSavedRecord] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Calculate days in month
   const daysInMonth = new Date(parseInt(dobYear, 10) || 2005, parseInt(dobMonth, 10) || 1, 0).getDate();
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setIsSaving(true);
     const formattedDob = `${dobYear}-${String(dobMonth).padStart(2, '0')}-${String(dobDay).padStart(2, '0')}`;
     const updated = {
       ...student,
@@ -237,8 +295,20 @@ export function EditStudentModal({ student, onClose, onSave, onShowToast }) {
       photoUrl,
       signatureUrl: sigUrl
     };
-    setSavedRecord(updated);
-    setIsConfirmPromptOpen(true);
+
+    try {
+      if (onSave) {
+        await onSave(updated);
+      }
+      setSavedRecord(updated);
+      setIsConfirmPromptOpen(true);
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(`Failed to save changes: ${err.message || err}`);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -474,8 +544,10 @@ export function EditStudentModal({ student, onClose, onSave, onShowToast }) {
           </div>
 
           <div className="modal-footer">
-            <button className="modal-btn-cancel" onClick={onClose}>Cancel</button>
-            <button className="modal-btn-save" onClick={handleSave}>Save Changes</button>
+            <button className="modal-btn-cancel" onClick={onClose} disabled={isSaving}>Cancel</button>
+            <button className="modal-btn-save" onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Saving…' : 'Save Changes'}
+            </button>
           </div>
 
           {/* Confirmation Prompt Modal */}
@@ -494,10 +566,6 @@ export function EditStudentModal({ student, onClose, onSave, onShowToast }) {
                     type="button"
                     className="modal-prompt-ok-btn"
                     onClick={() => {
-                      onSave(savedRecord);
-                      if (onShowToast) {
-                        onShowToast(`Student record for ${savedRecord?.name} successfully updated!`);
-                      }
                       setIsConfirmPromptOpen(false);
                       onClose();
                     }}
@@ -547,7 +615,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeSection, setActiveSection] = useState({ sec: 'All', count: 0 });
 
-  const sections = buildSections(program.code, students);
+  const sections = buildSections(program.code, students, program);
   const yearLevels = Object.keys(sections);
 
   useEffect(() => {
@@ -580,7 +648,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
             time: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recently'
           }));
           setStudents(mapped);
-          const computedSections = buildSections(program.code, mapped);
+          const computedSections = buildSections(program.code, mapped, program);
           const firstYr = Object.keys(computedSections)[0];
           const initialSec = computedSections[firstYr]?.[0] || { sec: '1-1', count: 0 };
           setActiveSection(initialSec);
@@ -604,7 +672,8 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
 
   const handleSectionExport = async (format) => {
     const secParam = activeSection?.sec !== 'All' ? activeSection.sec : undefined;
-    const filter = { program: program.code, section: secParam };
+    const ayStr = stats?.ayName?.replace(/^AY\s*/i, '').trim() || '2026-2027';
+    const filter = { program: program.code, section: secParam, academicYear: ayStr };
     const label = secParam ? `${program.code} (${secParam})` : program.code;
 
     if (onShowToast) {
@@ -697,7 +766,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
           Registrations
         </button>
         {' '}
-        <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 400, fontSize: 'inherit', fontFamily: 'inherit' }}>
+        <span className="regs-breadcrumb-current">
           / {org?.code || 'ACES'} - {program.code}
         </span>
       </h1>
@@ -734,7 +803,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
           {/* Panel header — program info with dynamic org header */}
           <div
             className="regs-student-panel-header"
-            style={{ backgroundImage: org?.header ? `url(${org.header})` : 'none' }}
+            style={{ backgroundImage: (org?.header || org?.headerImg) ? `url(${org.header || org.headerImg})` : 'none' }}
           >
             <div className="regs-panel-header-left">
               <GraduationCap size={36} weight="fill" color="#FFFFFF" style={{ flexShrink: 0 }} />
@@ -743,6 +812,11 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
                 <div className="regs-panel-section-label">Section: {activeSection?.sec ?? '1-1'}</div>
               </div>
             </div>
+            {org?.logo && (
+              <div className="regs-panel-header-right">
+                <img src={org.logo} alt={org.code} className="regs-panel-header-logo-badge" />
+              </div>
+            )}
           </div>
 
           {/* Toolbar */}
@@ -953,6 +1027,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
   // Pin the last known-good stats to avoid parent re-renders with stale empty data
   // blanking the program counts (Bug 18 fix)
   const [liveStats, setLiveStats] = useState(stats || null);
+  const [dbPrograms, setDbPrograms] = useState([]);
   const pinnedCountsRef = React.useRef({});
 
   useEffect(() => {
@@ -964,6 +1039,12 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
         }
       }
     }).catch(() => {});
+
+    programsApi.getAll().then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        setDbPrograms(data);
+      }
+    }).catch(() => {});
   }, []);
 
   // Use liveStats if available, fall back to prop — but always keep last non-empty programCounts
@@ -973,13 +1054,25 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
   }
   const progCounts = pinnedCountsRef.current;
 
-  const dynamicOrgs = ORGS.map(org => ({
-    ...org,
-    programs: org.programs.map(prog => ({
-      ...prog,
-      count: progCounts[prog.code] ?? progCounts[prog.code.toUpperCase()] ?? 0
-    }))
-  }));
+  const dynamicOrgs = ORGS.map(org => {
+    const orgDbProgs = dbPrograms.filter(p => p.org.toUpperCase() === org.code.toUpperCase());
+    const baseProgs = orgDbProgs.length > 0
+      ? orgDbProgs.map(p => ({
+          code: p.code,
+          name: p.name,
+          sections: p.sections || [],
+          sections_detail: p.sections_detail || [],
+        }))
+      : org.programs;
+
+    return {
+      ...org,
+      programs: baseProgs.map(prog => ({
+        ...prog,
+        count: progCounts[prog.code] ?? progCounts[prog.code.toUpperCase()] ?? 0
+      }))
+    };
+  });
 
   const targetProgramCode = params.programCode || initialProgramCode;
   const targetOrgCode = params.orgCode;
@@ -1036,7 +1129,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
               {/* Org Header Banner */}
               <div
                 className="org-card-banner"
-                style={{ backgroundImage: `url(${org.header})` }}
+                style={{ backgroundImage: `url(${org.header || org.headerImg})` }}
               >
                 <div className="org-card-banner-overlay" />
                 <span className="org-card-banner-name">{org.code}</span>

@@ -111,6 +111,29 @@
     background-color: #7B0000; /* Deep red for active pill */
     color: #FFFFFF;
   }
+
+  .nav-item.navigating {
+    background-color: rgba(220, 38, 38, 0.15);
+    color: #FFFFFF;
+    border-left: 3px solid #DC2626;
+  }
+
+  .nav-item-spinner {
+    margin-left: auto;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #EF4444;
+    border-radius: 50%;
+    animation: nav-spinner-spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes nav-spinner-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   
   /* Actions */
   .sidebar-actions {

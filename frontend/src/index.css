@@ -171,6 +171,39 @@ a {
   z-index: 1;
 }
 
+/* Top Navigation Progress Bar (QoL 3) */
+.app-top-nav-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, #7B0000, #E00000, #FF4444);
+  box-shadow: 0 0 12px rgba(224, 0, 0, 0.7);
+  z-index: 99999;
+  pointer-events: none;
+  animation: app-nav-progress 0.4s ease-out forwards;
+}
+
+@keyframes app-nav-progress {
+  0% {
+    width: 0%;
+    opacity: 1;
+  }
+  60% {
+    width: 80%;
+    opacity: 1;
+  }
+  90% {
+    width: 98%;
+    opacity: 1;
+  }
+  100% {
+    width: 100%;
+    opacity: 0;
+  }
+}
+
 /* Vanta Animated Canvas Background Container */
 .vanta-background {
   position: fixed;
@@ -193,11 +226,11 @@ a {
   position: relative;
   flex: 1;
   min-width: 0;
-  padding: 36px 44px;
+  padding: 36px 44px 0;
   margin-left: var(--sidebar-width);
   z-index: 2;
   height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }

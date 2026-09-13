@@ -29,7 +29,19 @@ export default function Sidebar({
     { id: 'recycle',       path: '/recycle-bin',   label: 'Recycle Bin',       icon: Trash },
   ];
 
+  const [navigatingPath, setNavigatingPath] = React.useState(null);
+
+  React.useEffect(() => {
+    if (navigatingPath && location.pathname.startsWith(navigatingPath)) {
+      const timer = setTimeout(() => setNavigatingPath(null), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname, navigatingPath]);
+
   const handleNavClick = (path) => {
+    if (path !== location.pathname) {
+      setNavigatingPath(path);
+    }
     navigate(path);
     if (setIsOpenMobile) {
       setIsOpenMobile(false);
@@ -83,10 +95,11 @@ export default function Sidebar({
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = isItemActive(item);
+            const isNavigating = navigatingPath === item.path;
             return (
               <button
                 key={item.id}
-                className={`nav-item ${isActive ? 'active' : ''}`}
+                className={`nav-item ${isActive ? 'active' : ''} ${isNavigating ? 'navigating' : ''}`}
                 onClick={() => handleNavClick(item.path)}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -94,6 +107,7 @@ export default function Sidebar({
                   <Icon size={20} weight={isActive ? 'fill' : 'regular'} />
                 </span>
                 <span className="nav-item-label">{item.label}</span>
+                {isNavigating && <span className="nav-item-spinner" aria-label="Loading page" />}
               </button>
             );
           })}

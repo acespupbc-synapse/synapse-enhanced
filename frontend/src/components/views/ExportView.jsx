@@ -61,7 +61,7 @@ export default function ExportView({ onExportCsv }) {
               <span className="card-kicker">EXPORT CONTRACT</span>
               <h2 className="card-title">1:1 Schema Compliance Verified</h2>
               <p className="card-desc">
-                The canonical SQLite database fields strictly map to the legacy Microsoft Access MDB table. Personal and emergency contact addresses are strictly kept as distinct data fields.
+                The canonical PostgreSQL database fields strictly map to the legacy Microsoft Access MDB table. Personal and emergency contact addresses are strictly kept as distinct data fields.
               </p>
             </div>
             <span className="card-badge-pill" style={{ background: 'var(--color-green-light)', color: 'var(--color-green)' }}>

@@ -81,11 +81,7 @@ export const authApi = {
   },
 
   async getCurrentUser() {
-    try {
-      return await request('/auth/me');
-    } catch (_) {
-      return { id: 1, username: 'admin', role: 'superadmin', name: 'ACES Administrator' };
-    }
+    return await request('/auth/me');
   },
 
   async changePassword(currentPassword, newPassword) {
@@ -161,6 +157,14 @@ export const statsApi = {
 
 // ── Student Registration & Management Service ──────────────────────────────
 export const studentApi = {
+  async getAcademicPrograms() {
+    try {
+      return await request('/students/programs');
+    } catch (_) {
+      return null;
+    }
+  },
+
   /**
    * Submit new student registration from public wizard.
    * Serializes canonical model according to docs/database/mapping-matrix.md
@@ -197,7 +201,7 @@ export const studentApi = {
     try {
       return await request(`/admin/students?${query}`);
     } catch (_) {
-      // Return empty array or mock data
+      // Return empty array on network failure
       return [];
     }
   },
@@ -211,9 +215,10 @@ export const studentApi = {
       first_name: updatedFields.firstName || updatedFields.first_name,
       middle_name: updatedFields.middleName || updatedFields.middle_name,
       last_name: updatedFields.lastName || updatedFields.last_name,
+      student_number: updatedFields.studentNumber || updatedFields.student_number,
       email: updatedFields.email,
       gender: updatedFields.gender,
-      birth_date: updatedFields.birthdate || updatedFields.birth_date,
+      birth_date: updatedFields.birthdate || updatedFields.birth_date || null,
       perm_strt: updatedFields.residentialAddress || updatedFields.perm_strt,
       contact_person_name: updatedFields.emergencyContactName || updatedFields.contact_person_name,
       contact_person_number: updatedFields.emergencyContactNumber || updatedFields.contact_person_number,
@@ -224,14 +229,10 @@ export const studentApi = {
       signature_data: (updatedFields.signatureUrl?.startsWith('data:') ? updatedFields.signatureUrl : null) || updatedFields.signature_data,
     };
 
-    try {
-      return await request(`/admin/students/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-    } catch (_) {
-      return { success: true, updated: updatedFields };
-    }
+    return await request(`/admin/students/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
   },
 
   async heartbeat(sessionId) {
@@ -322,36 +323,44 @@ export const programsApi = {
   },
 
   async create(program) {
-    try {
-      return await request('/admin/programs', {
-        method: 'POST',
-        body: JSON.stringify(program),
-      });
-    } catch (_) {
-      return { id: String(Date.now()), ...program };
-    }
+    return await request('/admin/programs', {
+      method: 'POST',
+      body: JSON.stringify(program),
+    });
   },
 
   async update(id, program) {
-    try {
-      return await request(`/admin/programs/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(program),
-      });
-    } catch (_) {
-      return { id, ...program };
-    }
+    return await request(`/admin/programs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(program),
+    });
   },
 
   async delete(id) {
-    try {
-      return await request(`/admin/programs/${id}`, {
-        method: 'DELETE',
-      });
-    } catch (_) {
-      return { success: true, id };
-    }
-  }
+    return await request(`/admin/programs/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async createSection(sectionData) {
+    return await request('/admin/programs/sections', {
+      method: 'POST',
+      body: JSON.stringify(sectionData),
+    });
+  },
+
+  async updateSection(id, payload) {
+    return await request(`/admin/programs/sections/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteSection(id) {
+    return await request(`/admin/programs/sections/${id}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 // ── Settings Service ────────────────────────────────────────────────────────
@@ -429,8 +438,11 @@ export const exportApi = {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const tag = filters.program ? (filters.section ? `_${filters.program}_${filters.section}` : `_${filters.program}`) : '';
-      a.download = `CardFive_Export${tag}_${new Date().toISOString().slice(0, 10)}.csv`;
+      const ay = (filters.academicYear || '2026-2027').replace(/^AY\s*/i, '');
+      const filename = filters.program && filters.section
+        ? `${ay}_${filters.program}_${filters.section}.csv`
+        : (filters.program ? `${ay}_${filters.program}.csv` : `${ay}_All_Registrations.csv`);
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -451,8 +463,11 @@ export const exportApi = {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const tag = filters.program ? (filters.section ? `_${filters.program}_${filters.section}` : `_${filters.program}`) : '';
-      a.download = `CardFive_Export${tag}_${new Date().toISOString().slice(0, 10)}.mdb`;
+      const ay = (filters.academicYear || '2026-2027').replace(/^AY\s*/i, '');
+      const filename = filters.program && filters.section
+        ? `${ay}_${filters.program}_${filters.section}.mdb`
+        : (filters.program ? `${ay}_${filters.program}.mdb` : `${ay}_All_Registrations.mdb`);
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

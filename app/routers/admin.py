@@ -1,5 +1,7 @@
 import time
-from fastapi import APIRouter, Depends
+import urllib.request
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
@@ -25,7 +27,7 @@ def bust_dashboard_cache():
 
 async def _get_db_storage_mb(db: AsyncSession) -> float:
     now = time.time()
-    if now - _db_size_cache["ts"] > 60:
+    if now - _db_size_cache["ts"] > 300:
         try:
             db_size_res = await db.execute(select(func.pg_database_size(func.current_database())))
             size_bytes = db_size_res.scalar() or 0
@@ -103,17 +105,41 @@ async def get_capacity(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
-    enrolled = await db.execute(
-        select(func.count(Student.id)).where(Student.deleted_at.is_(None))
+    counts_res = await db.execute(
+        select(
+            func.count(Student.id).filter(Student.deleted_at.is_(None)),
+            func.count(Student.photo_r2_key).filter(Student.deleted_at.is_(None)),
+            func.count(Student.signature_r2_key).filter(Student.deleted_at.is_(None)),
+        )
     )
-    used = enrolled.scalar_one() or 0
+    enrolled, photo_count, sig_count = counts_res.one()
+    used = enrolled or 0
     max_records = 500
     storage_max_mb = 500
 
     storage_mb = await _get_db_storage_mb(db)
     pct = round((storage_mb / storage_max_mb) * 100, 2)
 
+    total_files = (photo_count or 0) + (sig_count or 0)
+    r2_used_mb = round(((photo_count or 0) * 1.5) + ((sig_count or 0) * 0.4), 2)
+    r2_max_mb = 10000.0  # 10 GB free tier
+    r2_pct = round((r2_used_mb / r2_max_mb) * 100, 2)
+
     return {
+        "supabase": {
+            "usedRecords": used,
+            "maxRecords": max_records,
+            "percentage": pct,
+            "storageUsedMb": storage_mb,
+            "storageMaxMb": storage_max_mb,
+        },
+        "cloudflare": {
+            "usedFiles": total_files,
+            "maxFiles": 10000,
+            "percentage": r2_pct,
+            "storageUsedMb": r2_used_mb,
+            "storageMaxMb": r2_max_mb,
+        },
         "usedRecords": used,
         "maxRecords": max_records,
         "percentage": pct,
@@ -134,13 +160,16 @@ async def get_full_dashboard(
             cached["stats"] = {**cached["stats"], "liveUsers": get_live_visitor_count()}
         return cached
 
+    # Consolidated counts query: enrolled, recycle bin, photos, signatures in 1 single roundtrip
     counts_res = await db.execute(
         select(
             func.count(Student.id).filter(Student.deleted_at.is_(None)),
             func.count(Student.id).filter(Student.deleted_at.is_not(None)),
+            func.count(Student.photo_r2_key).filter(Student.deleted_at.is_(None)),
+            func.count(Student.signature_r2_key).filter(Student.deleted_at.is_(None)),
         )
     )
-    enrolled_count, recycle_count = counts_res.one()
+    enrolled_count, recycle_count, photo_count, sig_count = counts_res.one()
     enrolled_count = enrolled_count or 0
     recycle_count = recycle_count or 0
 
@@ -165,6 +194,12 @@ async def get_full_dashboard(
 
     storage_mb = await _get_db_storage_mb(db)
 
+    # Cloudflare R2 Media Capacity
+    total_files = (photo_count or 0) + (sig_count or 0)
+    r2_used_mb = round(((photo_count or 0) * 1.5) + ((sig_count or 0) * 0.4), 2)
+    r2_max_mb = 10000.0  # 10 GB free tier
+    r2_pct = round((r2_used_mb / r2_max_mb) * 100, 2)
+
     stats = {
         "isRegistrationOpen": registration_open,
         "enrolledCount": enrolled_count,
@@ -178,6 +213,21 @@ async def get_full_dashboard(
     }
 
     capacity = {
+        "supabase": {
+            "usedRecords": enrolled_count,
+            "maxRecords": 500,
+            "percentage": round((storage_mb / 500) * 100, 2),
+            "storageUsedMb": storage_mb,
+            "storageMaxMb": 500,
+        },
+        "cloudflare": {
+            "usedFiles": total_files,
+            "maxFiles": 10000,
+            "percentage": r2_pct,
+            "storageUsedMb": r2_used_mb,
+            "storageMaxMb": r2_max_mb,
+        },
+        # Flat fallback
         "usedRecords": enrolled_count,
         "maxRecords": 500,
         "percentage": round((storage_mb / 500) * 100, 2),
@@ -230,3 +280,26 @@ async def get_live_feed(
         })
 
     return feed
+
+
+@router.get("/media-proxy")
+async def media_proxy(
+    url: str,
+    _admin: AdminUser = Depends(get_current_admin),
+):
+    """Proxy private R2 media with open CORS to avoid client-side canvas taint during cropping."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "ACES-Synapse/2.2"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            content = resp.read()
+            content_type = resp.headers.get("Content-Type", "image/jpeg")
+            return Response(
+                content=content,
+                media_type=content_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=3600",
+                },
+            )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Proxy error: {str(e)}")

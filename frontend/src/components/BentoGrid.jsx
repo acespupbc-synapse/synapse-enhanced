@@ -7,6 +7,7 @@ import {
   Users,
   Trash,
   Database,
+  Cloud,
   Gear,
   IdentificationCard
 } from '@phosphor-icons/react';
@@ -52,7 +53,161 @@ function PersonAvatar({ size = 50, photoUrl }) {
   );
 }
 
-export default function BentoGrid({ stats, capacity: propCapacity, feed: propFeed, onNavigateTab, onShowToast }) {
+// ── Dashboard Skeleton Loading Placeholder (QoL 2) ─────────────────────────
+function BentoGridSkeleton() {
+  return (
+    <main className="dashboard-main skeleton-loading-dashboard" role="main" aria-label="Loading dashboard">
+      <div className="skeleton-shimmer" style={{ width: 140, height: 28, marginBottom: 20, borderRadius: 6 }} />
+
+      {/* Header Metric Row Skeleton */}
+      <div className="dashboard-header-row">
+        <div className="metric-card clock-system-card skeleton-card">
+          <div className="skeleton-shimmer" style={{ width: 100, height: 24, marginBottom: 8 }} />
+          <div className="skeleton-shimmer" style={{ width: 150, height: 13, marginBottom: 14 }} />
+          <div className="clock-divider" style={{ opacity: 0.15 }} />
+          <div style={{ display: 'flex', gap: 16, marginTop: 10 }}>
+            <div className="skeleton-shimmer" style={{ width: 80, height: 14 }} />
+            <div className="skeleton-shimmer" style={{ width: 90, height: 14 }} />
+          </div>
+        </div>
+
+        <div className="metric-card small-metric-card skeleton-card">
+          <div className="skeleton-shimmer" style={{ width: 80, height: 13, marginBottom: 12 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="skeleton-shimmer" style={{ width: 28, height: 28, borderRadius: '50%' }} />
+            <div className="skeleton-shimmer" style={{ width: 50, height: 28 }} />
+          </div>
+        </div>
+
+        <div className="metric-card small-metric-card skeleton-card">
+          <div className="skeleton-shimmer" style={{ width: 90, height: 13, marginBottom: 12 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="skeleton-shimmer" style={{ width: 28, height: 28, borderRadius: 6 }} />
+            <div className="skeleton-shimmer" style={{ width: 90, height: 28 }} />
+          </div>
+        </div>
+
+        <div className="metric-card toggle-metric-card skeleton-card">
+          <div className="skeleton-shimmer" style={{ width: 85, height: 13, marginBottom: 12 }} />
+          <div className="skeleton-shimmer" style={{ width: 68, height: 24, borderRadius: 5 }} />
+        </div>
+      </div>
+
+      {/* Main Grid Skeleton */}
+      <div className="dashboard-grid">
+        {/* Left Column */}
+        <div className="grid-col grid-col-left">
+          <div className="panel-card total-registered-card skeleton-card">
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14 }}>
+              <div className="skeleton-shimmer" style={{ width: 44, height: 44, borderRadius: '50%' }} />
+              <div>
+                <div className="skeleton-shimmer" style={{ width: 110, height: 13, marginBottom: 8 }} />
+                <div className="skeleton-shimmer" style={{ width: 60, height: 28 }} />
+              </div>
+            </div>
+            <div className="skeleton-shimmer" style={{ width: '100%', height: 30, borderRadius: 6 }} />
+          </div>
+
+          <div className="panel-card top-programs-card skeleton-card">
+            <div className="skeleton-shimmer" style={{ width: 120, height: 16, marginBottom: 16 }} />
+            {[...Array(4)].map((_, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div className="skeleton-shimmer" style={{ width: 55, height: 13 }} />
+                <div className="skeleton-shimmer" style={{ flex: 1, height: 8, borderRadius: 4 }} />
+                <div className="skeleton-shimmer" style={{ width: 22, height: 13 }} />
+              </div>
+            ))}
+          </div>
+
+          <div className="panel-card supabase-card skeleton-card">
+            <div className="skeleton-shimmer" style={{ width: 160, height: 13, marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+              <div className="skeleton-shimmer" style={{ width: 38, height: 38, borderRadius: 8 }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton-shimmer" style={{ width: 50, height: 18, marginBottom: 8 }} />
+                <div className="skeleton-shimmer" style={{ width: '100%', height: 7, marginBottom: 8 }} />
+                <div className="skeleton-shimmer" style={{ width: 120, height: 12 }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="panel-card cloudflare-card skeleton-card">
+            <div className="skeleton-shimmer" style={{ width: 180, height: 13, marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+              <div className="skeleton-shimmer" style={{ width: 38, height: 38, borderRadius: 8 }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton-shimmer" style={{ width: 50, height: 18, marginBottom: 8 }} />
+                <div className="skeleton-shimmer" style={{ width: '100%', height: 7, marginBottom: 8 }} />
+                <div className="skeleton-shimmer" style={{ width: 120, height: 12 }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Center Column */}
+        <div className="grid-col grid-col-center">
+          <div className="panel-card feed-card skeleton-card">
+            <div className="skeleton-shimmer" style={{ width: 170, height: 16, marginBottom: 18 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 14px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                  }}
+                >
+                  <div className="skeleton-shimmer" style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="skeleton-shimmer" style={{ width: '70%', height: 14, marginBottom: 6 }} />
+                    <div className="skeleton-shimmer" style={{ width: '45%', height: 12, marginBottom: 6 }} />
+                    <div className="skeleton-shimmer" style={{ width: '35%', height: 11 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="grid-col grid-col-right">
+          <div className="panel-card program-regs-card skeleton-card">
+            <div className="skeleton-shimmer" style={{ width: 200, height: 16, marginBottom: 18 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="skeleton-shimmer"
+                  style={{ width: '100%', height: 130, borderRadius: 10 }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Footer />
+    </main>
+  );
+}
+
+export default function BentoGrid({
+  stats,
+  capacity: propCapacity,
+  feed: propFeed,
+  onNavigateTab,
+  onShowToast,
+  isLoading = false,
+}) {
+  if (isLoading) {
+    return <BentoGridSkeleton />;
+  }
+
   // ── Live Clock ────────────────────────────────────────────────────────────
   const [now, setNow] = useState(new Date());
   const [editingStudent, setEditingStudent] = useState(null);
@@ -104,6 +259,17 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
   }, [stats?.enrolledCount, propFeed, propCapacity]);
 
   const capacity = propCapacity || internalCapacity;
+  const supaCapacity = capacity?.supabase || {
+    percentage: capacity?.percentage || 2.10,
+    storageUsedMb: capacity?.storageUsedMb || 10.52,
+    storageMaxMb: capacity?.storageMaxMb || 500,
+  };
+  const cfCapacity = capacity?.cloudflare || {
+    percentage: 0.05,
+    storageUsedMb: 5.2,
+    storageMaxMb: 10000,
+    usedFiles: 0,
+  };
   const liveFeed = propFeed || internalFeed;
 
   const cpu = stats?.cpuPercent != null ? `${stats.cpuPercent}%` : '0%';
@@ -182,7 +348,7 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
       section: sec,
       yearLevel: '1st Year',
       org: courseCode === 'BSCpE' || courseCode === 'DCpET' ? 'ACES' : (courseCode === 'BSIT' || courseCode === 'DIT' ? 'IBITS' : 'ACES'),
-      birthdate: '2004-05-15',
+      birthdate: '',
       residentialAddress: '',
       emergencyContactName: '',
       emergencyContactNumber: '',
@@ -293,18 +459,17 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
           </div>
         </div>
 
-        {/* Registration Status Indicator Card — display only, not toggleable (Bug 6) */}
+        {/* Registration Status Indicator Card — display only, solid outline badge matching footer style (Bug 6) */}
         <div className="metric-card toggle-metric-card">
           <span className="metric-label">Registration:</span>
           <div className="status-badge-container">
-            <div
-              className={`custom-toggle ${registrationOpen ? 'open' : 'closed'}`}
+            <span
+              className={`dashboard-status-badge ${registrationOpen ? 'open' : 'closed'}`}
               title={registrationOpen ? 'Registration is OPEN' : 'Registration is CLOSED'}
               aria-label={`Registration is currently ${registrationOpen ? 'open' : 'closed'}`}
             >
-              <span className="toggle-text">{registrationOpen ? 'OPEN' : 'CLOSED'}</span>
-              <span className="toggle-knob" />
-            </div>
+              {registrationOpen ? 'OPEN' : 'CLOSED'}
+            </span>
           </div>
         </div>
       </div>
@@ -364,22 +529,42 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
             </div>
           </div>
 
-          {/* Database Capacity */}
+          {/* Supabase Storage Capacity (Bug 15) */}
           <div className="panel-card supabase-card">
-            <span className="panel-label">Database Capacity:</span>
+            <span className="panel-label">Supabase Storage Capacity:</span>
             <div className="supabase-content">
               <div className="supa-icon-group">
-                <Database size={44} weight="fill" color="#FFFFFF" />
-                <Gear size={18} weight="fill" className="supa-gear" />
+                <Database size={40} weight="fill" color="#3ECF8E" />
+                <Gear size={16} weight="fill" className="supa-gear" />
               </div>
               <div className="supa-stats">
-                <span className="supa-percent">{Number(capacity.percentage || 0).toFixed(2)}%</span>
+                <span className="supa-percent">{Number(supaCapacity.percentage || 0).toFixed(2)}%</span>
                 <div className="supa-bar-discrete">
                   {[...Array(20)].map((_, i) => (
-                    <div key={i} className={`discrete-line ${i < Math.max(1, Math.round(((capacity.percentage || 0.2) / 100) * 20)) ? 'active' : ''}`} />
+                    <div key={i} className={`discrete-line ${i < Math.max(1, Math.round(((supaCapacity.percentage || 0.2) / 100) * 20)) ? 'active' : ''}`} />
                   ))}
                 </div>
-                <span className="supa-volume">{Number(capacity.storageUsedMb || 0).toFixed(2)} MB / {capacity.storageMaxMb || 500} MB</span>
+                <span className="supa-volume">{Number(supaCapacity.storageUsedMb || 0).toFixed(2)} MB / {supaCapacity.storageMaxMb || 500} MB</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Cloudflare R2 Storage Capacity (Bug 15) */}
+          <div className="panel-card cloudflare-card">
+            <span className="panel-label">Cloudflare R2 Storage Capacity:</span>
+            <div className="supabase-content">
+              <div className="supa-icon-group">
+                <Cloud size={40} weight="fill" color="#F38020" />
+                <Gear size={16} weight="fill" className="supa-gear" />
+              </div>
+              <div className="supa-stats">
+                <span className="supa-percent">{Number(cfCapacity.percentage || 0).toFixed(2)}%</span>
+                <div className="supa-bar-discrete">
+                  {[...Array(20)].map((_, i) => (
+                    <div key={i} className={`discrete-line cf-discrete ${i < Math.max(1, Math.round(((cfCapacity.percentage || 0.05) / 100) * 20)) ? 'active' : ''}`} />
+                  ))}
+                </div>
+                <span className="supa-volume">{Number(cfCapacity.storageUsedMb || 0).toFixed(2)} MB / {Number(cfCapacity.storageMaxMb || 10000) >= 1000 ? `${(cfCapacity.storageMaxMb / 1000).toFixed(0)} GB` : `${cfCapacity.storageMaxMb} MB`}</span>
               </div>
             </div>
           </div>
@@ -511,14 +696,21 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
         <EditStudentModal
           student={editingStudent}
           onClose={() => setEditingStudent(null)}
-          onSave={(updated) => {
-            if (onShowToast) {
-              onShowToast(`Student record for ${updated.name} successfully updated!`);
+          onSave={async (updated) => {
+            try {
+              await studentApi.update(updated.id, updated);
+              if (onShowToast) {
+                onShowToast(`Student record for ${updated.name} successfully updated!`);
+              }
+            } catch (err) {
+              if (onShowToast) {
+                onShowToast(`Failed to update student: ${err.message}`);
+              }
             }
             setEditingStudent(null);
             statsApi.getLiveFeed().then((data) => {
               if (Array.isArray(data)) {
-                setLiveFeed(
+                setInternalFeed(
                   data.map((item) => ({
                     id: item.id,
                     name: item.name,

@@ -11,7 +11,7 @@ import HomeView from './components/views/HomeView';
 import LoginView from './components/views/LoginView';
 import StudentRegistrationView from './components/views/StudentRegistrationView';
 import RegistrationClosedView from './components/views/RegistrationClosedView';
-import { statsApi, settingsApi, authApi } from './services/api';
+import { statsApi, settingsApi, authApi, studentApi } from './services/api';
 import './index.css';
 
 export default function App() {
@@ -33,6 +33,7 @@ export default function App() {
     ayName: 'AY 2026-2027',
     cpuPercent: 0,
     latencyMs: 0,
+    liveUsers: 1,
     recycleBinCount: 0,
     programCounts: {},
   });
@@ -46,6 +47,22 @@ export default function App() {
   });
 
   const [dashboardFeed, setDashboardFeed] = useState([]);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+
+  // Route Navigation Loading Progress (QoL 3)
+  const [isRouteNavigating, setIsRouteNavigating] = useState(false);
+  const prevPathRef = React.useRef(location.pathname);
+
+  useEffect(() => {
+    if (prevPathRef.current !== location.pathname) {
+      prevPathRef.current = location.pathname;
+      setIsRouteNavigating(true);
+      const timer = setTimeout(() => {
+        setIsRouteNavigating(false);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname]);
 
   // Fetch unified dashboard bundle from backend (stats + capacity + feed in 1 roundtrip)
   const fetchFullDashboard = useCallback(async () => {
@@ -67,6 +84,7 @@ export default function App() {
               : prev.programCounts,
             cpuPercent: data.stats.cpuPercent ?? 0,
             latencyMs: data.stats.latencyMs ?? 0,
+            liveUsers: data.stats.liveUsers != null ? data.stats.liveUsers : prev.liveUsers,
           }));
         }
         if (data.capacity) {
@@ -90,7 +108,55 @@ export default function App() {
       }
     } catch (_) {
       // Graceful fallback
+    } finally {
+      setIsDashboardLoading(false);
     }
+  }, []);
+
+  // Graceful initial skeleton load on mount (QoL 2)
+  useEffect(() => {
+    setIsDashboardLoading(true);
+    const start = Date.now();
+    fetchFullDashboard().finally(() => {
+      const elapsed = Date.now() - start;
+      const delay = Math.max(0, 450 - elapsed);
+      setTimeout(() => setIsDashboardLoading(false), delay);
+    });
+  }, [fetchFullDashboard]);
+
+  // ── Global Visitor Heartbeat for Accurate Active Users (Bug 16) ────────
+  useEffect(() => {
+    let sessionId = sessionStorage.getItem('synapse_visitor_session');
+    if (!sessionId) {
+      sessionId = 'vis_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+      sessionStorage.setItem('synapse_visitor_session', sessionId);
+    }
+
+    // Initial ping
+    studentApi.heartbeat(sessionId);
+
+    // Heartbeat every 15 seconds
+    const interval = setInterval(() => {
+      studentApi.heartbeat(sessionId);
+    }, 15000);
+
+    const handleLeave = () => {
+      try {
+        const payload = JSON.stringify({ session_id: sessionId });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/api/students/heartbeat/leave', new Blob([payload], { type: 'application/json' }));
+        } else {
+          studentApi.heartbeatLeave(sessionId);
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('beforeunload', handleLeave);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleLeave);
+    };
   }, []);
 
   // Optimized real-time polling: every 4 seconds when tab is visible, plus instant wakeup on focus
@@ -221,6 +287,7 @@ export default function App() {
               <Navigate to="/login" replace state={{ from: location }} />
             ) : (
               <div className="app-container">
+                {isRouteNavigating && <div className="app-top-nav-loader" />}
                 <BackgroundVanta isDark={isDark} />
 
                 <Sidebar
@@ -243,6 +310,7 @@ export default function App() {
                           stats={stats}
                           capacity={dashboardCapacity}
                           feed={dashboardFeed}
+                          isLoading={isDashboardLoading}
                           onNavigateTab={(tab, code) => {
                             if (code) navigate(`/registrations/${code}`);
                             else if (tab === 'recycle') navigate('/recycle-bin');
