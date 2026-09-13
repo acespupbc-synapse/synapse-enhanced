@@ -1,9 +1,16 @@
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+"""
+app/schemas/export.py — MDB CSV Export Schema + transform function
+
+This is the official MDB-compatibility export contract for CardFive.
+All fields match the STDNTINFO table in sample.mdb.
+"""
+from typing import Optional, Any
+from pydantic import BaseModel
+
 
 class MDBCsvExportSchema(BaseModel):
     """
-    Pydantic schema representing the exact CSV export structure required for the 
+    Pydantic schema representing the exact CSV export structure required for the
     Microsoft Access MDB (STDNTINFO table) workflow.
     """
     STUDNO: str
@@ -37,46 +44,42 @@ class MDBCsvExportSchema(BaseModel):
     CTCTNMBR: str
     ACADLEVL: str
 
-    class Config:
-        populate_by_name = True
+    model_config = {"populate_by_name": True}
+
 
 def transform_student_to_mdb_csv(student: Any) -> MDBCsvExportSchema:
     """
     Transforms a Student SQLAlchemy model instance into the MDB CSV Export format.
     All text fields are forced to UPPERCASE to maintain strict legacy compatibility.
+
+    NOTE: Assumes section and course are eagerly loaded (selectinload) before calling.
     """
-    
-    def to_upper(val: str | None) -> str:
+
+    def to_upper(val: Optional[str]) -> str:
         return val.upper() if val else ""
 
-    # Map Year Level Integer to MDB Academic Level String
-    # Reference: 1 -> 50, 2 -> 51 (Assumption based on legacy, adjust if needed)
-    year_map = {
-        1: "50",
-        2: "51",
-        3: "52",
-        4: "53",
-        5: "54"
-    }
-    
+    # Map Year Level integer to MDB Academic Level string
+    # Legacy mapping: 1st Year = 50, 2nd = 51, 3rd = 52, 4th = 53
+    year_map = {1: "50", 2: "51", 3: "52", 4: "53", 5: "54"}
+
     acad_level = ""
     prog_code = ""
     if student.section:
         acad_level = year_map.get(student.section.year_level, "")
-        if student.section.course:
-            prog_code = to_upper(student.section.course.code)
-    
+        if student.course:
+            prog_code = to_upper(student.course.code)
+
     return MDBCsvExportSchema(
         STUDNO=to_upper(student.student_number),
         LASTNAME=to_upper(student.last_name),
         GENDER=to_upper(student.gender),
         MDLENAME=to_upper(student.middle_name),
-        BRTHPLCE="", # Legacy didn't collect
-        ADMSYEAR="", # Legacy didn't collect
+        BRTHPLCE="",  # Not collected in canonical model
+        ADMSYEAR="",  # Not collected in canonical model
         FRSTNAME=to_upper(student.first_name),
         BRTHDATE=student.birth_date.strftime("%m/%d/%Y") if student.birth_date else "",
         EMAILADR=to_upper(student.email),
-        MPHNNMBR="", # Legacy didn't collect mobile phone in personal details
+        MPHNNMBR="",  # Not collected (mobile in personal detail section — TBD)
         PERMBLDG=to_upper(student.perm_bldg),
         PROGCODE=prog_code,
         PERMDSTR=to_upper(student.perm_dstr),
@@ -96,5 +99,5 @@ def transform_student_to_mdb_csv(student: Any) -> MDBCsvExportSchema:
         CTCTSTRT=to_upper(student.contact_strt),
         RCRDDATE=student.created_at.strftime("%m/%d/%Y") if student.created_at else "",
         CTCTNMBR=to_upper(student.contact_person_number),
-        ACADLEVL=acad_level
+        ACADLEVL=acad_level,
     )

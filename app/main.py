@@ -1,84 +1,87 @@
+"""
+app/main.py — ACES Synapse Enhanced FastAPI Application
+"""
+import asyncio
 import os
-from fastapi import FastAPI, Depends, HTTPException
+import sys
+
+# Windows: psycopg3 async requires SelectorEventLoop (not ProactorEventLoop default on Windows)
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
-from sqlalchemy.orm import Session
-from app.core.database import get_db, engine, Base
-from app.models.student import Student, RegistrationStatus
-from app.models.config import AcademicYear, Organization, Course, Section
-from app.schemas.export import MDBCsvExportSchema, transform_student_to_mdb_csv
+from fastapi.responses import FileResponse
+
+from app.core.config import get_settings
+from app.routers import auth, admin, students, programs, settings as settings_router, export
+
+settings_cfg = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: nothing to do for now (migrations run via alembic CLI)
+    yield
+    # Shutdown: close engine connections
+    from app.core.database import engine
+    await engine.dispose()
+
 
 app = FastAPI(
     title="ACES Synapse Enhanced API",
     description="Student administration and CardFive MDB sync engine for PUP Bataan ACES",
-    version="2.1.2"
+    version="2.2.0",
+    lifespan=lifespan,
 )
 
-# CORS setup
+# ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings_cfg.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# API Endpoints
-@app.get("/api/health")
-def health_check():
-    return {"status": "healthy", "service": "aces-synapse-enhanced", "database": "sqlite"}
+# ── Register Routers ──────────────────────────────────────────────────────────
+app.include_router(auth.router)
+app.include_router(admin.router)
+app.include_router(students.router)
+app.include_router(programs.router)
+app.include_router(settings_router.router)
+app.include_router(export.router)
 
-@app.get("/api/admin/stats")
-def get_admin_stats(db: Session = Depends(get_db)):
-    active_ay = db.query(AcademicYear).filter(AcademicYear.is_active == True).first()
-    student_count = db.query(Student).filter(Student.deleted_at.is_(None)).count()
+# ── Health Check (public) ─────────────────────────────────────────────────────
+@app.get("/api/health")
+async def health_check():
     return {
-        "isRegistrationOpen": True,
-        "enrolledCount": student_count if student_count > 0 else 342,
-        "activeAcademicYear": active_ay.name if active_ay else "AY 2025-2026",
-        "dbStatus": "Online"
+        "status": "healthy",
+        "service": "aces-synapse-enhanced",
+        "version": "2.2.0",
+        "database": "supabase-postgresql",
     }
 
-@app.get("/api/admin/export/csv")
-def export_mdb_csv(db: Session = Depends(get_db)):
-    headers = [
-        "STUDENT_NUMBER", "FIRST_NAME", "MIDDLE_NAME", "LAST_NAME",
-        "COURSE", "SECTION", "PERM_BLDG", "PERM_STRT", "PERM_CITY",
-        "PERM_STAD", "PERM_POST", "CTCT_NAME", "CTCT_NMBR", "CTCT_STRT"
-    ]
-    
-    rows = [
-        [
-            "2025-00416-BN-0", "CHRISTIAN GABRIEL", "P", "FERNANDEZ",
-            "BSIT", "3-1", "BLK 12 LOT 4", "ROSE ST. CAMAYA", "MARIVELES",
-            "BATAAN", "2105", "MARIA FERNANDEZ", "09171234567", "BLK 12 LOT 4 ROSE ST."
-        ],
-        [
-            "2025-00102-BN-0", "MARIA NICOLE", "T", "SANTOS",
-            "BSCpE", "2-1", "UNIT 3B", "POBLACION CENTRAL", "MARIVELES",
-            "BATAAN", "2105", "ROBERTO SANTOS", "09189876543", "UNIT 3B POBLACION CENTRAL"
-        ]
-    ]
 
-    csv_output = [",".join(headers)]
-    for r in rows:
-        csv_output.append(",".join(f'"{col}"' for col in r))
-
-    return Response(
-        content="\n".join(csv_output),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=CardFive_MDB_Export.csv"}
-    )
-
-# Static and SPA Hosting
+# ── SPA Static File Hosting (production build) ────────────────────────────────
 dist_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
 
 if os.path.exists(dist_dir):
-    app.mount("/assets", StaticFiles(directory=os.path.join(dist_dir, "assets")), name="assets")
-    app.mount("/img", StaticFiles(directory=os.path.join(dist_dir, "img")), name="img")
+    assets_dir = os.path.join(dist_dir, "assets")
+    img_dir = os.path.join(dist_dir, "img")
 
-    @app.get("/{full_path:path}")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    if os.path.exists(img_dir):
+        app.mount("/img", StaticFiles(directory=img_dir), name="img")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
         file_path = os.path.join(dist_dir, full_path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
