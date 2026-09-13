@@ -5,7 +5,10 @@
  * and seamless fallback simulation when in offline/development mode.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+const API_BASE_URL = RAW_API_URL
+  ? (RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL}/api`)
+  : '/api';
 
 /**
  * Base fetch wrapper with timeout, token injection, and unified error handling.
