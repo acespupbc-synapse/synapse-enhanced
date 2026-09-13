@@ -53,7 +53,7 @@ export default function RegistrationClosedView({ academicYear = '2025-2026', onB
         {/* Action Buttons (Red, White, Black, Gray — No Yellow) */}
         <div className="reg-closed-actions">
           <a
-            href="https://facebook.com"
+            href="https://www.facebook.com/acespupbc"
             target="_blank"
             rel="noopener noreferrer"
             className="reg-closed-btn-primary"

@@ -17,6 +17,12 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 _db_size_cache = {"mb": 10.52, "ts": 0}
 
 
+def bust_dashboard_cache():
+    """Invalidate the dashboard cache so the next poll fetches fresh data."""
+    _dashboard_cache["ts"] = 0
+
+
+
 async def _get_db_storage_mb(db: AsyncSession) -> float:
     now = time.time()
     if now - _db_size_cache["ts"] > 60:

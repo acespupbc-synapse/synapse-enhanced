@@ -105,23 +105,11 @@
   color: #FFFFFF;
 }
 
-.sreg-navbar-logo {
-  width: 38px;
-  height: 38px;
+.sreg-navbar-banner {
+  height: 32px;
+  width: auto;
   object-fit: contain;
-}
-
-.sreg-navbar-brand {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sreg-navbar-brand .brand-red {
-  color: #EF4444;
+  max-width: 220px;
 }
 
 .sreg-navbar-actions {

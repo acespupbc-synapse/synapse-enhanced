@@ -202,10 +202,10 @@ export default function StudentRegistrationView({ onBack }) {
 
   const [formData, setFormData] = useState({
     // Step 1: Academic
-    org: 'ACES',
-    course: 'BSCpE',
-    yearLevel: '1st Year',
-    section: '1-1',
+    org: '',
+    course: '',
+    yearLevel: '',
+    section: '',
 
     // Step 2: Personal
     firstName: '',
@@ -263,15 +263,51 @@ export default function StudentRegistrationView({ onBack }) {
     return new Date(y, m, 0).getDate();
   }, [dobMonth, dobYear]);
 
-  // Handle text input changes
+  // Handle text input changes — forces uppercase on text fields
   const handleChange = (field, value) => {
+    const textFields = ['firstName', 'middleName', 'lastName', 'residentialAddress',
+                        'contactPersonName', 'contactPersonAddress'];
+    const finalValue = textFields.includes(field) ? value.toUpperCase() : value;
     setFormData((prev) => {
-      const updated = { ...prev, [field]: value };
+      const updated = { ...prev, [field]: finalValue };
       if (field === 'residentialAddress' && prev.sameAddress) {
-        updated.contactPersonAddress = value;
+        updated.contactPersonAddress = finalValue;
       }
       return updated;
     });
+    if (stepError) setStepError('');
+  };
+
+  // QoL 1: Auto-insert dashes for student number mask: 0000-00000-BN-0
+  const handleStudentNumberInput = (raw) => {
+    // Strip all non-alphanumeric except existing dashes, then rebuild mask
+    const digits = raw.replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
+    let masked = '';
+    let i = 0;
+    // Part 1: 4 digits
+    const part1 = digits.slice(0, 4);
+    masked += part1;
+    i += part1.length;
+    if (i >= 4 && digits.length > 4) masked += '-';
+    // Part 2: 5 digits
+    const part2 = digits.slice(4, 9);
+    masked += part2;
+    if (digits.length > 9) masked += '-';
+    // Part 3: 2 chars (BN)
+    const part3 = digits.slice(9, 11);
+    masked += part3;
+    if (digits.length > 11) masked += '-';
+    // Part 4: 1 char
+    const part4 = digits.slice(11, 12);
+    masked += part4;
+    setFormData((prev) => ({ ...prev, studentNumber: masked }));
+    if (stepError) setStepError('');
+  };
+
+  // QoL 4: Allow only digits for contact phone number
+  const handleContactNumberInput = (raw) => {
+    const digitsOnly = raw.replace(/\D/g, '');
+    setFormData((prev) => ({ ...prev, contactPersonNumber: digitsOnly }));
     if (stepError) setStepError('');
   };
 
@@ -795,6 +831,10 @@ export default function StudentRegistrationView({ onBack }) {
       if (!formData.lastName.trim()) return 'Last name is required.';
       if (!formData.studentNumber.trim()) return 'Student number is required.';
       if (!formData.email.trim()) return 'Email address is required.';
+      // QoL 5: Only Gmail accounts allowed
+      if (!/^[a-zA-Z0-9._%+\-]+@gmail\.com$/i.test(formData.email.trim())) {
+        return 'Only Gmail addresses are accepted (e.g. name@gmail.com).';
+      }
       if (!formData.birthDate) return 'Complete date of birth (Month, Day, Year) is required.';
       if (!formData.residentialAddress.trim()) return 'Residential address is required.';
     } else if (step === 3) {
@@ -848,10 +888,10 @@ export default function StudentRegistrationView({ onBack }) {
     closeCropperModal();
     closeSignatureModal();
     setFormData({
-      org: 'ACES',
-      course: 'BSCpE',
-      yearLevel: '1st Year',
-      section: '1-1',
+      org: '',
+      course: '',
+      yearLevel: '',
+      section: '',
       firstName: '',
       middleName: '',
       lastName: '',
@@ -925,10 +965,11 @@ export default function StudentRegistrationView({ onBack }) {
     >
       {/* ── Top Navigation Bar ────────────────────────────────────────────── */}
       <header className="sreg-navbar" style={navDynamicStyle}>
-        <img src="/img/pup_logo2.png" alt="PUP Logo" className="sreg-navbar-logo" />
-        <div className="sreg-navbar-brand">
-          <span>ACES</span> <span className="brand-red">Synapse</span>
-        </div>
+        <img
+          src="/img/logo/aces_synapse_text_register.png"
+          alt="ACES Synapse"
+          className="sreg-navbar-banner"
+        />
 
         <div className="sreg-navbar-actions">
           {/* Light / Dark Mode Toggle */}
@@ -1179,9 +1220,9 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="studentNumber"
                           type="text"
-                          placeholder="202X-XXXXX-BN-0"
+                          placeholder="20XX-XXXXX-BN-0"
                           value={formData.studentNumber}
-                          onChange={(e) => handleChange('studentNumber', e.target.value)}
+                          onChange={(e) => handleStudentNumberInput(e.target.value)}
                           maxLength={15}
                         />
                       </div>
@@ -1193,7 +1234,7 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="email"
                           type="email"
-                          placeholder="student@pup.edu.ph"
+                          placeholder="example@gmail.com"
                           value={formData.email}
                           onChange={(e) => handleChange('email', e.target.value)}
                         />
@@ -1302,15 +1343,16 @@ export default function StudentRegistrationView({ onBack }) {
 
                       <div className="sreg-field">
                         <label htmlFor="contactPersonNumber">
-                          Contact Phone Number <span className="req">*</span>
+                          Contact Person's Phone Number <span className="req">*</span>
                         </label>
                         <input
                           id="contactPersonNumber"
                           type="tel"
                           placeholder="e.g. 09171234567"
                           value={formData.contactPersonNumber}
-                          onChange={(e) => handleChange('contactPersonNumber', e.target.value)}
+                          onChange={(e) => handleContactNumberInput(e.target.value)}
                           maxLength={11}
+                          inputMode="numeric"
                         />
                       </div>
                     </div>

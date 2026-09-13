@@ -293,20 +293,18 @@ export default function BentoGrid({ stats, capacity: propCapacity, feed: propFee
           </div>
         </div>
 
-        {/* Registration Status Indicator Card */}
+        {/* Registration Status Indicator Card — display only, not toggleable (Bug 6) */}
         <div className="metric-card toggle-metric-card">
           <span className="metric-label">Registration:</span>
           <div className="status-badge-container">
-            <button
-              type="button"
+            <div
               className={`custom-toggle ${registrationOpen ? 'open' : 'closed'}`}
-              onClick={handleToggleRegistration}
-              title={`Click to ${registrationOpen ? 'close' : 'open'} registration`}
-              aria-label="Toggle Registration Status"
+              title={registrationOpen ? 'Registration is OPEN' : 'Registration is CLOSED'}
+              aria-label={`Registration is currently ${registrationOpen ? 'open' : 'closed'}`}
             >
               <span className="toggle-text">{registrationOpen ? 'OPEN' : 'CLOSED'}</span>
               <span className="toggle-knob" />
-            </button>
+            </div>
           </div>
         </div>
       </div>

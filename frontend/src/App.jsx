@@ -60,7 +60,11 @@ export default function App() {
             dbStatus: data.stats.dbStatus ?? prev.dbStatus,
             ayName: data.stats.activeAcademicYear ?? prev.ayName,
             recycleBinCount: data.stats.recycleBinCount ?? 0,
-            programCounts: data.stats.programCounts ?? {},
+            // Only overwrite programCounts if the response is non-empty to prevent
+            // a transient stale cache response from blanking real data (Bug 18)
+            programCounts: Object.keys(data.stats.programCounts ?? {}).length > 0
+              ? data.stats.programCounts
+              : prev.programCounts,
             cpuPercent: data.stats.cpuPercent ?? 0,
             latencyMs: data.stats.latencyMs ?? 0,
           }));
@@ -199,11 +203,11 @@ export default function App() {
             !stats.isRegistrationOpen ? (
               <RegistrationClosedView
                 academicYear={stats.ayName}
-                onBack={() => navigate(isAuthenticated ? '/dashboard' : '/home')}
+                onBack={() => navigate('/home')}
               />
             ) : (
               <StudentRegistrationView
-                onBack={() => navigate(isAuthenticated ? '/dashboard' : '/home')}
+                onBack={() => navigate('/home')}
               />
             )
           }

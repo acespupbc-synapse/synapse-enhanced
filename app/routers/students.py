@@ -44,6 +44,14 @@ from app.schemas.student import (
     StudentUpdateRequest,
 )
 
+# Imported lazily to avoid circular imports; called after any write that mutates counts
+def _bust_cache():
+    try:
+        from app.routers.admin import bust_dashboard_cache
+        bust_dashboard_cache()
+    except Exception:
+        pass
+
 router = APIRouter(tags=["students"])
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -208,6 +216,8 @@ async def register_student(
 
     await db.flush()
 
+    _bust_cache()
+
     return RegisterResponse(
         success=True,
         registration_id=str(student.id),
@@ -328,6 +338,8 @@ async def update_student(
     student.updated_at = datetime.now(timezone.utc)
     db.add(student)
 
+    _bust_cache()
+
     return _student_to_out(student)
 
 
@@ -346,6 +358,7 @@ async def soft_delete_student(
 
     student.deleted_at = datetime.now(timezone.utc)
     db.add(student)
+    _bust_cache()
     return {"success": True, "id": str(student_id), "message": "Record moved to recycle bin."}
 
 
@@ -364,6 +377,7 @@ async def restore_student(
 
     student.deleted_at = None
     db.add(student)
+    _bust_cache()
     return {"success": True, "id": str(student_id), "message": "Record restored."}
 
 
@@ -387,6 +401,7 @@ async def purge_student(
         delete_media(student.signature_r2_key)
 
     await db.delete(student)
+    _bust_cache()
     return {"success": True, "id": str(student_id), "message": "Record permanently deleted."}
 
 
@@ -407,6 +422,7 @@ async def empty_recycle_bin(
             delete_media(s.signature_r2_key)
         await db.delete(s)
 
+    _bust_cache()
     return {"success": True, "message": f"Recycle bin purged ({len(soft_deleted)} records deleted)."}
 
 

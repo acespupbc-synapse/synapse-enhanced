@@ -25,7 +25,7 @@ export default function Sidebar({
   const navItems = [
     { id: 'dashboard',     path: '/dashboard',     label: 'Dashboard',         icon: House },
     { id: 'registrations', path: '/registrations', label: 'Registrations',     icon: Users },
-    { id: 'programs',      path: '/programs',      label: 'Academic Programs', icon: GraduationCap },
+    { id: 'programs',      path: '/programs',      label: 'Programs',          icon: GraduationCap },
     { id: 'recycle',       path: '/recycle-bin',   label: 'Recycle Bin',       icon: Trash },
   ];
 

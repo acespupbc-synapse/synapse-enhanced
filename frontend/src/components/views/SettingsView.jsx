@@ -485,7 +485,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
                             }}
                           >
                             <Plus size={14} weight="bold" />
-                            <span>Add Future Academic Year</span>
+                            <span>Add Academic Year</span>
                           </button>
                         </div>
                       )}

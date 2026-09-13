@@ -10,16 +10,18 @@ export default function HomeView() {
     <div className="login-view-container">
       <div className="login-card home-card">
         <div className="login-header">
-          <div className="home-logo-wrap">
+          <div className="home-logo-group">
             <img
               src="/img/logo/aces-synapse-red.png"
               alt="ACES Synapse Logo"
               className="home-synapse-logo"
             />
+            <img
+              src="/img/logo/aces_synapse_text_register.png"
+              alt="ACES Synapse"
+              className="home-synapse-text-img"
+            />
           </div>
-          <h1 className="home-brand-title">
-            ACES SYNAPSE
-          </h1>
         </div>
 
         <div className="login-actions">

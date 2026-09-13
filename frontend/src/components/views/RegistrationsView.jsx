@@ -697,7 +697,9 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
           Registrations
         </button>
         {' '}
-        <span>/ {org?.code || 'ACES'} - {program.code}</span>
+        <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 400, fontSize: 'inherit', fontFamily: 'inherit' }}>
+          / {org?.code || 'ACES'} - {program.code}
+        </span>
       </h1>
 
       <div className="regs-drilldown-body">
@@ -812,17 +814,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
                       setShowExportMenu(false);
                     }}
                   >
-                    CSV (CardFive Table)
-                  </button>
-                  <button
-                    type="button"
-                    className="regs-export-menu-item"
-                    onClick={() => {
-                      handleSectionExport('pdf');
-                      setShowExportMenu(false);
-                    }}
-                  >
-                    PDF (Masterlist Document)
+                    Export as CSV
                   </button>
                   <button
                     type="button"
@@ -832,15 +824,11 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
                       setShowExportMenu(false);
                     }}
                   >
-                    MS Access MDB (CardFive Database)
+                    Export as MDB
                   </button>
                 </div>
               )}
             </div>
-
-            <button className="regs-filter-icon-btn" aria-label="Filter options">
-              <Faders size={15} />
-            </button>
           </div>
 
           {/* Student list */}
@@ -962,15 +950,28 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
 export default function RegistrationsView({ initialProgramCode, onShowToast, stats }) {
   const navigate = useNavigate();
   const params = useParams();
+  // Pin the last known-good stats to avoid parent re-renders with stale empty data
+  // blanking the program counts (Bug 18 fix)
   const [liveStats, setLiveStats] = useState(stats || null);
+  const pinnedCountsRef = React.useRef({});
 
   useEffect(() => {
     statsApi.getDashboardStats().then(data => {
-      if (data) setLiveStats(data);
+      if (data) {
+        setLiveStats(data);
+        if (Object.keys(data.programCounts ?? {}).length > 0) {
+          pinnedCountsRef.current = data.programCounts;
+        }
+      }
     }).catch(() => {});
   }, []);
 
-  const progCounts = liveStats?.programCounts || stats?.programCounts || {};
+  // Use liveStats if available, fall back to prop — but always keep last non-empty programCounts
+  const rawProgCounts = (liveStats ?? stats)?.programCounts ?? {};
+  if (Object.keys(rawProgCounts).length > 0) {
+    pinnedCountsRef.current = rawProgCounts;
+  }
+  const progCounts = pinnedCountsRef.current;
 
   const dynamicOrgs = ORGS.map(org => ({
     ...org,
