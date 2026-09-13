@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.r2_storage import get_presigned_url
 from app.core.security import get_current_admin
 from app.models.admin_user import AdminUser
 from app.models.student import Student, RegistrationStatus
@@ -120,10 +121,12 @@ async def get_live_feed(
         created = s.created_at
         feed.append({
             "id": str(s.id),
+            "student_number": s.student_number,
             "name": f"{s.last_name}, {s.first_name} {(s.middle_name or '')[:1]}{'.' if s.middle_name else ''}".strip(),
             "course": course_code,
             "section": section_name,
             "time": created.isoformat() if created else "",
+            "photo_url": get_presigned_url(s.photo_r2_key),
         })
 
     return feed

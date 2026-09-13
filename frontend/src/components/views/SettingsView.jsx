@@ -17,6 +17,7 @@ import {
   FileArchive,
   CaretDown
 } from '@phosphor-icons/react';
+import { studentApi } from '../../services/api';
 import './SettingsView.css';
 
 export default function SettingsView({ stats, onToggleRegistration, onShowToast }) {
@@ -89,14 +90,15 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   const [passwordError, setPasswordError] = useState('');
 
   // ── System Diagnostics State ──────────────────────────────────────────────
+  const rawApiUrl = (import.meta.env.VITE_API_URL || 'https://synapse-enhanced.onrender.com').replace(/\/+$/, '');
   const [systemMetrics] = useState({
-    dbEngine: 'SQLite 3 + SQLAlchemy 2.0 (PUP Biñan Schema)',
-    dbFile: 'aces_synapse.db',
-    alembicRevision: 'd11a0c5bab39 (Initial Migration)',
-    apiEndpoint: 'http://127.0.0.1:8000/api',
-    apiStatus: 'Healthy',
+    dbEngine: 'PostgreSQL (Supabase Pooler) + SQLAlchemy 2.0 (Canonical Schema)',
+    dbFile: 'PostgreSQL aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres',
+    alembicRevision: '001_canonical_postgresql_schema',
+    apiEndpoint: `${rawApiUrl}/api`,
+    apiStatus: 'Healthy (Online)',
     activeSessions: 1,
-    storageUsed: '48.2 MB / 500 MB'
+    storageUsed: `${stats?.storageUsedMb || 4.5} MB / 500 MB`
   });
 
   // Handle saving configurations
@@ -199,7 +201,15 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   };
 
   // Download Complete Archive (Database + Photos + Signatures)
-  const handleDownloadCompleteArchive = () => {
+  const handleDownloadCompleteArchive = async () => {
+    let records = [];
+    try {
+      const liveStudents = await studentApi.getAll();
+      if (Array.isArray(liveStudents)) {
+        records = liveStudents;
+      }
+    } catch (_) {}
+
     const fullArchivePayload = {
       archiveType: 'ACES_SYNAPSE_FULL_BACKUP',
       exportedAt: new Date().toISOString(),
@@ -214,33 +224,10 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
           enableAuditLog: securityConfig.enableAuditLog
         }
       },
-      databaseRecords: [
-        {
-          studentNumber: '2022-00218-BN-0',
-          fullName: 'Hernandez, John Benedict G.',
-          course: 'BSCpE',
-          section: '1-2',
-          org: 'ACES',
-          email: 'jbhernandez@pup.edu.ph',
-          photoArchiveRef: 'photos/2022-00218-BN-0.jpg',
-          signatureArchiveRef: 'signatures/2022-00218-BN-0.jpg'
-        },
-        {
-          studentNumber: '2023-00102-BN-0',
-          fullName: 'Santos, Maria Nicole T.',
-          course: 'BSIT',
-          section: '2-1',
-          org: 'IBITS',
-          email: 'mnsantos@pup.edu.ph',
-          photoArchiveRef: 'photos/2023-00102-BN-0.jpg',
-          signatureArchiveRef: 'signatures/2023-00102-BN-0.jpg'
-        }
-      ],
+      databaseRecords: records,
       mediaSummary: {
-        totalPhotos: 342,
-        totalSignatures: 342,
-        encoding: 'Binary / Base64 Data URI',
-        storageBucket: 'synapse-media-binan'
+        totalRecords: records.length,
+        storageProvider: 'Cloudflare R2 (synapse-media)'
       }
     };
 

@@ -25,7 +25,7 @@ export default function App() {
 
   const [stats, setStats] = useState({
     isRegistrationOpen: true,
-    enrolledCount: 342,
+    enrolledCount: 0,
     dbStatus: 'Online',
     ayName: 'AY 2025-2026'
   });
@@ -241,6 +241,7 @@ export default function App() {
             key={`regs_${regsResetKey}_${selectedProgramFilter || 'all'}`}
             initialProgramCode={selectedProgramFilter}
             onShowToast={showToast}
+            stats={stats}
           />
         )}
 

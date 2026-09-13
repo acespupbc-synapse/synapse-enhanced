@@ -11,29 +11,6 @@ import {
 import { studentApi } from '../../services/api';
 import './RecycleBinView.css';
 
-// ── Sample soft-deleted records (placeholder — ready for backend) ────────────
-
-const INITIAL_DELETED = [
-  {
-    id: 'del-1',
-    name: 'Hernandez, John Benedict G.',
-    studentNumber: '2022-00218-BN-0',
-    program: 'BSCpE',
-    section: '1-2',
-    org: 'ACES',
-    deletedAt: new Date(Date.now() - 1000 * 60 * 14), // 14 min ago
-  },
-  {
-    id: 'del-2',
-    name: 'Villanueva, Althea Grace D.',
-    studentNumber: '2024-00331-BN-0',
-    program: 'BSIT',
-    section: '2-1',
-    org: 'IBITS',
-    deletedAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hrs ago
-  },
-];
-
 function relativeTime(date) {
   const diff = (Date.now() - date.getTime()) / 1000;
   if (diff < 60) return `${Math.round(diff)}s ago`;

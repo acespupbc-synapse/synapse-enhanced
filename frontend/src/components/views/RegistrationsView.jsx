@@ -16,7 +16,7 @@ import {
   X,
   GraduationCap
 } from '@phosphor-icons/react';
-import { studentApi } from '../../services/api';
+import { studentApi, statsApi } from '../../services/api';
 import { CameraModal, CropperModal, SignatureModal } from '../common/MediaModals';
 import './RegistrationsView.css';
 
@@ -28,8 +28,8 @@ const ORGS = [
     logo: '/img/orgs/aces.png',
     header: '/img/orgs/aces_header.png',
     programs: [
-      { code: 'BSCpE', name: 'Bachelor of Science in Computer Engineering', count: 134 },
-      { code: 'DCpET', name: 'Diploma in Computer Engineering Technology', count: 62 },
+      { code: 'BSCpE', name: 'Bachelor of Science in Computer Engineering', count: 0 },
+      { code: 'DCpET', name: 'Diploma in Computer Engineering Technology', count: 0 },
     ],
   },
   {
@@ -37,7 +37,7 @@ const ORGS = [
     logo: '/img/orgs/hrss.png',
     header: '/img/orgs/hrss_header.png',
     programs: [
-      { code: 'BSBA-HRM', name: 'BS in Business Administration — Human Resource Management', count: 123 },
+      { code: 'BSBA-HRM', name: 'BS in Business Administration — Human Resource Management', count: 0 },
     ],
   },
   {
@@ -45,8 +45,8 @@ const ORGS = [
     logo: '/img/orgs/ibits.png',
     header: '/img/orgs/ibits_header.png',
     programs: [
-      { code: 'BSIT', name: 'Bachelor of Science in Information Technology', count: 156 },
-      { code: 'DIT', name: 'Diploma in Information Technology', count: 48 },
+      { code: 'BSIT', name: 'Bachelor of Science in Information Technology', count: 0 },
+      { code: 'DIT', name: 'Diploma in Information Technology', count: 0 },
     ],
   },
   {
@@ -54,7 +54,7 @@ const ORGS = [
     logo: '/img/orgs/piie.png',
     header: '/img/orgs/piie_header.png',
     programs: [
-      { code: 'BSIE', name: 'Bachelor of Science in Industrial Engineering', count: 95 },
+      { code: 'BSIE', name: 'Bachelor of Science in Industrial Engineering', count: 0 },
     ],
   },
   {
@@ -62,7 +62,7 @@ const ORGS = [
     logo: '/img/orgs/sms.png',
     header: '/img/orgs/sms_header.png',
     programs: [
-      { code: 'BSPSY', name: 'Bachelor of Science in Psychology', count: 110 },
+      { code: 'BSPSY', name: 'Bachelor of Science in Psychology', count: 0 },
     ],
   },
   {
@@ -70,153 +70,43 @@ const ORGS = [
     logo: '/img/orgs/yes.png',
     header: '/img/orgs/yes_header.png',
     programs: [
-      { code: 'BSED-ENG', name: 'Bachelor of Secondary Education — English', count: 85 },
-      { code: 'BSED-SS', name: 'Bachelor of Secondary Education — Social Studies', count: 76 },
-      { code: 'BEED', name: 'Bachelor of Elementary Education', count: 92 },
+      { code: 'BSED-ENG', name: 'Bachelor of Secondary Education — English', count: 0 },
+      { code: 'BSED-SS', name: 'Bachelor of Secondary Education — Social Studies', count: 0 },
+      { code: 'BEED', name: 'Bachelor of Elementary Education', count: 0 },
     ],
   },
 ];
 
-// Sections per year level for the nav panel
-function buildSections(progCode) {
-  const base = {
-    'BSCpE':    { '1st Year': [{ sec: '1-1', count: 43 }, { sec: '1-2', count: 56 }], '2nd Year': [{ sec: '2-1', count: 38 }], '3rd Year': [{ sec: '3-1', count: 35 }] },
-    'DCpET':    { '1st Year': [{ sec: '1-1', count: 32 }, { sec: '1-2', count: 30 }] },
-    'BSBA-HRM': { '1st Year': [{ sec: '1-1', count: 40 }, { sec: '1-2', count: 38 }], '2nd Year': [{ sec: '2-1', count: 45 }] },
-    'BSIT':     { '1st Year': [{ sec: '1-1', count: 42 }, { sec: '1-2', count: 40 }], '2nd Year': [{ sec: '2-1', count: 38 }, { sec: '2-2', count: 36 }] },
-    'DIT':      { '1st Year': [{ sec: '1-1', count: 28 }, { sec: '1-2', count: 20 }] },
-    'BSIE':     { '1st Year': [{ sec: '1-1', count: 35 }], '2nd Year': [{ sec: '2-1', count: 30 }], '3rd Year': [{ sec: '3-1', count: 30 }] },
-    'BSPSY':    { '1st Year': [{ sec: '1-1', count: 38 }, { sec: '1-2', count: 36 }], '2nd Year': [{ sec: '2-1', count: 36 }] },
-    'BSED-ENG': { '1st Year': [{ sec: '1-1', count: 28 }, { sec: '1-2', count: 30 }], '2nd Year': [{ sec: '2-1', count: 27 }] },
-    'BSED-SS':  { '1st Year': [{ sec: '1-1', count: 25 }, { sec: '1-2', count: 28 }], '2nd Year': [{ sec: '2-1', count: 23 }] },
-    'BEED':     { '1st Year': [{ sec: '1-1', count: 32 }, { sec: '1-2', count: 30 }], '2nd Year': [{ sec: '2-1', count: 30 }] },
+// Sections per year level with dynamic counts from registered students
+function buildSections(progCode, studentList = []) {
+  const baseSections = {
+    'BSCpE':    { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'], '3rd Year': ['3-1'] },
+    'DCpET':    { '1st Year': ['1-1', '1-2'] },
+    'BSBA-HRM': { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
+    'BSIT':     { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1', '2-2'] },
+    'DIT':      { '1st Year': ['1-1', '1-2'] },
+    'BSIE':     { '1st Year': ['1-1'], '2nd Year': ['2-1'], '3rd Year': ['3-1'] },
+    'BSPSY':    { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
+    'BSED-ENG': { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
+    'BSED-SS':  { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
+    'BEED':     { '1st Year': ['1-1', '1-2'], '2nd Year': ['2-1'] },
   };
-  return base[progCode] ?? { '1st Year': [{ sec: '1-1', count: 30 }] };
-}
 
-// Enriched sample student list matching canonical model
-const INITIAL_STUDENTS = [
-  {
-    id: '1',
-    name: 'Hernandez, John Benedict G.',
-    firstName: 'John Benedict',
-    middleName: 'G.',
-    lastName: 'Hernandez',
-    studentNumber: '2022-00218-BN-0',
-    email: 'jbhernandez@pup.edu.ph',
-    course: 'BSCpE',
-    program: 'BSCpE',
-    yearLevel: '1st Year',
-    section: '1-2',
-    org: 'ACES',
-    birthdate: '2004-05-15',
-    residentialAddress: 'Blk 12 Lot 4 Rose St. Camaya, Mariveles, Bataan',
-    emergencyContactName: 'Maria Hernandez',
-    emergencyContactNumber: '09171234567',
-    emergencyAddress: 'Blk 12 Lot 4 Rose St. Camaya, Mariveles, Bataan',
-    time: '1 min ago'
-  },
-  {
-    id: '2',
-    name: 'Santos, Maria Nicole T.',
-    firstName: 'Maria Nicole',
-    middleName: 'T.',
-    lastName: 'Santos',
-    studentNumber: '2023-00102-BN-0',
-    email: 'mnsantos@pup.edu.ph',
-    course: 'BSCpE',
-    program: 'BSCpE',
-    yearLevel: '1st Year',
-    section: '1-2',
-    org: 'ACES',
-    birthdate: '2005-02-20',
-    residentialAddress: 'Unit 3B Poblacion Central, Mariveles, Bataan',
-    emergencyContactName: 'Roberto Santos',
-    emergencyContactNumber: '09189876543',
-    emergencyAddress: 'Unit 3B Poblacion Central, Mariveles, Bataan',
-    time: '3 min ago'
-  },
-  {
-    id: '3',
-    name: 'Fernandez, Christian Gabriel P.',
-    firstName: 'Christian Gabriel',
-    middleName: 'P.',
-    lastName: 'Fernandez',
-    studentNumber: '2024-00416-BN-0',
-    email: 'cgfernandez@pup.edu.ph',
-    course: 'BSCpE',
-    program: 'BSCpE',
-    yearLevel: '1st Year',
-    section: '1-2',
-    org: 'ACES',
-    birthdate: '2004-11-08',
-    residentialAddress: 'Bgy. Baseco Country, Mariveles, Bataan',
-    emergencyContactName: 'Gabriel Fernandez',
-    emergencyContactNumber: '09201234567',
-    emergencyAddress: 'Bgy. Baseco Country, Mariveles, Bataan',
-    time: '4 min ago'
-  },
-  {
-    id: '4',
-    name: 'Dela Cruz, Rica Joy B.',
-    firstName: 'Rica Joy',
-    middleName: 'B.',
-    lastName: 'Dela Cruz',
-    studentNumber: '2022-00055-BN-0',
-    email: 'rjdela_cruz@pup.edu.ph',
-    course: 'BSCpE',
-    program: 'BSCpE',
-    yearLevel: '1st Year',
-    section: '1-2',
-    org: 'ACES',
-    birthdate: '2004-08-14',
-    residentialAddress: 'Alas-asin, Mariveles, Bataan',
-    emergencyContactName: 'Elena Dela Cruz',
-    emergencyContactNumber: '09194567890',
-    emergencyAddress: 'Alas-asin, Mariveles, Bataan',
-    time: '5 min ago'
-  },
-  {
-    id: '5',
-    name: 'Reyes, Mark Andrei P.',
-    firstName: 'Mark Andrei',
-    middleName: 'P.',
-    lastName: 'Reyes',
-    studentNumber: '2023-00310-BN-0',
-    email: 'mareyes@pup.edu.ph',
-    course: 'BSCpE',
-    program: 'BSCpE',
-    yearLevel: '1st Year',
-    section: '1-2',
-    org: 'ACES',
-    birthdate: '2005-01-30',
-    residentialAddress: 'Balon Anito, Mariveles, Bataan',
-    emergencyContactName: 'Andrei Reyes Sr.',
-    emergencyContactNumber: '09228765432',
-    emergencyAddress: 'Balon Anito, Mariveles, Bataan',
-    time: '7 min ago'
-  },
-  {
-    id: '6',
-    name: 'Villanueva, Althea Grace D.',
-    firstName: 'Althea Grace',
-    middleName: 'D.',
-    lastName: 'Villanueva',
-    studentNumber: '2024-00331-BN-0',
-    email: 'agvillanueva@pup.edu.ph',
-    course: 'BSCpE',
-    program: 'BSCpE',
-    yearLevel: '1st Year',
-    section: '1-2',
-    org: 'ACES',
-    birthdate: '2005-09-12',
-    residentialAddress: 'Lucanin, Mariveles, Bataan',
-    emergencyContactName: 'Grace Villanueva',
-    emergencyContactNumber: '09176543210',
-    emergencyAddress: 'Lucanin, Mariveles, Bataan',
-    time: '12 min ago'
-  },
-];
+  const template = baseSections[progCode] ?? { '1st Year': ['1-1'] };
+  const result = {};
+
+  for (const [year, secs] of Object.entries(template)) {
+    result[year] = secs.map(sec => ({
+      sec,
+      count: studentList.filter(s => {
+        const sSec = s.section || '';
+        return sSec === sec || sSec.endsWith(sec) || sSec === `${progCode} ${sec}`;
+      }).length
+    }));
+  }
+
+  return result;
+}
 
 // ── Student Avatar placeholder ─────────────────────────────────────────────
 
@@ -645,17 +535,16 @@ export function EditStudentModal({ student, onClose, onSave, onShowToast }) {
 // ── Drilldown View ─────────────────────────────────────────────────────────
 
 function DrilldownView({ org, program, onBack, onShowToast }) {
-  const sections = buildSections(program.code);
-  const yearLevels = Object.keys(sections);
-  const firstSection = sections[yearLevels[0]]?.[0] ?? null;
-
-  const [activeSection, setActiveSection] = useState(firstSection);
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editStudent, setEditStudent] = useState(null);
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeSection, setActiveSection] = useState({ sec: 'All', count: 0 });
+
+  const sections = buildSections(program.code, students);
+  const yearLevels = Object.keys(sections);
 
   useEffect(() => {
     setIsLoading(true);
@@ -684,9 +573,11 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
             photoUrl: s.photo_url || null,
             signatureUrl: s.signature_url || null,
             status: s.status || 'PENDING',
+            createdAt: s.created_at || null,
             time: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recently'
           }));
           setStudents(mapped);
+          setActiveSection({ sec: 'All', count: mapped.length });
         }
       })
       .catch(() => {})
@@ -704,16 +595,31 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
     'oldest': 'Oldest First'
   };
 
-  const filtered = students.filter(s =>
-    (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.studentNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = students.filter(s => {
+    const matchesSearch =
+      (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.studentNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSection =
+      !activeSection ||
+      activeSection.sec === 'All' ||
+      s.section === activeSection.sec ||
+      s.section?.endsWith(activeSection.sec);
+    return matchesSearch && matchesSection;
+  });
 
   const sorted = [...filtered].sort((a, b) => {
     if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
     if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-    if (sortBy === 'recent') return (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0);
-    if (sortBy === 'oldest') return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
+    if (sortBy === 'recent') {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return tb - ta;
+    }
+    if (sortBy === 'oldest') {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return ta - tb;
+    }
     return 0;
   });
 
@@ -760,6 +666,24 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
         {/* Left: Navigation Panel */}
         <nav className="regs-nav-panel" aria-label="Section navigation">
           <div className="regs-nav-panel-title">Navigation Panel</div>
+
+          {/* All Sections */}
+          <button
+            type="button"
+            className={`regs-section-btn ${activeSection?.sec === 'All' ? 'active' : ''}`}
+            onClick={() => setActiveSection({ sec: 'All', count: students.length })}
+            style={{ marginBottom: 10 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Folder size={14} weight="fill" />
+              All Sections
+            </div>
+            <span className="regs-section-count">
+              <Users size={11} weight="fill" />
+              {students.length}
+            </span>
+          </button>
+
           {yearLevels.map(year => (
             <React.Fragment key={year}>
               <div className="regs-nav-year-label">{year}</div>
@@ -794,7 +718,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
               <GraduationCap size={36} weight="fill" color="#FFFFFF" style={{ flexShrink: 0 }} />
               <div>
                 <div className="regs-panel-program-name">{program.name}</div>
-                <div className="regs-panel-section-label">Section: {activeSection?.sec ?? '1-1'}</div>
+                <div className="regs-panel-section-label">Section: {activeSection?.sec === 'All' ? 'All Sections' : (activeSection?.sec ?? 'All Sections')}</div>
               </div>
             </div>
             <div className="regs-panel-header-right">
@@ -857,9 +781,7 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
             ) : (
               sorted.map(student => (
                 <div className="regs-student-row" key={student.id}>
-                  <div className="regs-student-avatar">
-                    <AvatarPlaceholder size={44} photoUrl={student.photoUrl} />
-                  </div>
+                  <AvatarPlaceholder size={44} photoUrl={student.photoUrl} />
 
                   <div className="regs-student-info">
                     <div className="regs-student-name">{student.name}</div>
@@ -979,12 +901,28 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
   );
 }
 
-// ── Top-level: Org Grid ────────────────────────────────────────────────────
+export default function RegistrationsView({ initialProgramCode, onShowToast, stats }) {
+  const [liveStats, setLiveStats] = useState(stats || null);
 
-export default function RegistrationsView({ initialProgramCode, onShowToast }) {
+  useEffect(() => {
+    statsApi.getDashboardStats().then(data => {
+      if (data) setLiveStats(data);
+    }).catch(() => {});
+  }, []);
+
+  const progCounts = liveStats?.programCounts || stats?.programCounts || {};
+
+  const dynamicOrgs = ORGS.map(org => ({
+    ...org,
+    programs: org.programs.map(prog => ({
+      ...prog,
+      count: progCounts[prog.code] ?? progCounts[prog.code.toUpperCase()] ?? 0
+    }))
+  }));
+
   const [drilldown, setDrilldown] = useState(() => {
     if (initialProgramCode) {
-      for (const org of ORGS) {
+      for (const org of dynamicOrgs) {
         const found = org.programs.find(p => p.code === initialProgramCode);
         if (found) {
           return { org, program: found };
@@ -996,7 +934,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast }) {
 
   useEffect(() => {
     if (initialProgramCode) {
-      for (const org of ORGS) {
+      for (const org of dynamicOrgs) {
         const found = org.programs.find(p => p.code === initialProgramCode);
         if (found) {
           setDrilldown({ org, program: found });
@@ -1023,7 +961,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast }) {
       <h1 className="regs-page-title">Registrations</h1>
 
       <div className="regs-org-grid">
-        {ORGS.map(org => {
+        {dynamicOrgs.map(org => {
           const totalStudents = org.programs.reduce((acc, p) => acc + p.count, 0);
 
           return (

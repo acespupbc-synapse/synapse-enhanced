@@ -11,7 +11,7 @@ import {
   IdentificationCard
 } from '@phosphor-icons/react';
 import { EditStudentModal } from './views/RegistrationsView';
-import { statsApi } from '../services/api';
+import { statsApi, studentApi } from '../services/api';
 import './BentoGrid.css';
 
 // ── Utility: format time and date ──────────────────────────────────────────
@@ -23,8 +23,23 @@ function formatDate(date) {
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-// ── Person placeholder SVG (when no real photo available) ──────────────────
-function PersonAvatar({ size = 50 }) {
+// ── Person placeholder or photo avatar ─────────────────────────────────────
+function PersonAvatar({ size = 50, photoUrl }) {
+  if (photoUrl) {
+    return (
+      <div
+        className="feed-avatar-placeholder"
+        style={{ width: size, height: size, overflow: 'hidden', borderRadius: '50%', padding: 0 }}
+        aria-hidden="true"
+      >
+        <img
+          src={photoUrl}
+          alt="Avatar"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      </div>
+    );
+  }
   return (
     <div
       className="feed-avatar-placeholder"
@@ -69,6 +84,7 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
             course: item.course,
             section: `${item.course || ''} ${item.section || ''}`.trim() || '—',
             studentNumber: item.student_number || '',
+            photoUrl: item.photo_url || null,
             time: item.time
               ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : 'Recently',
@@ -99,7 +115,37 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
         .slice(0, 4)
     : [];
 
-  const handleOpenFeedStudent = (item, idx) => {
+  const handleOpenFeedStudent = async (item, idx) => {
+    if (item.id && !item.id.startsWith('feed-')) {
+      try {
+        const fullStudent = await studentApi.getById(item.id);
+        if (fullStudent) {
+          setEditingStudent({
+            id: fullStudent.id,
+            name: `${fullStudent.last_name}, ${fullStudent.first_name} ${fullStudent.middle_name || ''}`.trim(),
+            firstName: fullStudent.first_name,
+            middleName: fullStudent.middle_name || '',
+            lastName: fullStudent.last_name,
+            studentNumber: fullStudent.student_number,
+            email: fullStudent.email,
+            course: fullStudent.course_code || item.course || 'BSCpE',
+            program: fullStudent.course_code || item.course || 'BSCpE',
+            section: fullStudent.section_name || '1-1',
+            yearLevel: fullStudent.year_level ? `${fullStudent.year_level}${fullStudent.year_level === 1 ? 'st' : fullStudent.year_level === 2 ? 'nd' : fullStudent.year_level === 3 ? 'rd' : 'th'} Year` : '1st Year',
+            org: fullStudent.organization || 'ACES',
+            birthdate: fullStudent.birth_date || '',
+            residentialAddress: fullStudent.perm_strt || '',
+            emergencyContactName: fullStudent.contact_person_name || '',
+            emergencyContactNumber: fullStudent.contact_person_number || '',
+            emergencyAddress: fullStudent.contact_strt || fullStudent.perm_strt || '',
+            photoUrl: fullStudent.photo_url || item.photoUrl || null,
+            signatureUrl: fullStudent.signature_url || null,
+          });
+          return;
+        }
+      } catch (_) {}
+    }
+
     const parts = (item.section || '').split('|').map((s) => s.trim());
     const sec = parts[0] || '1-1';
     const sNum = item.studentNumber || (parts[1] || '');
@@ -119,7 +165,7 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
       emergencyContactName: '',
       emergencyContactNumber: '',
       emergencyAddress: '',
-      photoUrl: null,
+      photoUrl: item.photoUrl || null,
       signatureUrl: null
     });
   };
@@ -337,7 +383,7 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
                       onClick={() => handleOpenFeedStudent(item, idx)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <PersonAvatar size={48} />
+                      <PersonAvatar size={48} photoUrl={item.photoUrl} />
                       <div className="feed-info">
                         <h4 className="feed-name">{item.name}</h4>
                         <p className="feed-section">{item.section}</p>

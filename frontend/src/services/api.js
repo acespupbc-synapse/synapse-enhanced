@@ -60,27 +60,14 @@ async function request(endpoint, options = {}) {
 // ── Auth Service ────────────────────────────────────────────────────────────
 export const authApi = {
   async login(username, password) {
-    try {
-      const data = await request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
-      if (data.token) {
-        localStorage.setItem('synapse_auth_token', data.token);
-      }
-      return data;
-    } catch (_) {
-      // Fallback for demo / development: accept admin/admin
-      if (username === 'admin' && password === 'admin') {
-        const mockData = {
-          token: 'mock_jwt_token_admin_2026',
-          user: { id: 1, username: 'admin', role: 'superadmin', name: 'ACES Administrator' }
-        };
-        localStorage.setItem('synapse_auth_token', mockData.token);
-        return mockData;
-      }
-      throw new Error('Invalid credentials. (Hint for dev: admin / admin)');
+    const data = await request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    if (data.token) {
+      localStorage.setItem('synapse_auth_token', data.token);
     }
+    return data;
   },
 
   async logout() {
@@ -105,9 +92,6 @@ export const authApi = {
     return await request('/auth/change-password', {
       method: 'POST',
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-    }).catch(() => {
-      // Simulated success for development
-      return { success: true, message: 'Password updated successfully' };
     });
   }
 };
@@ -120,12 +104,14 @@ export const statsApi = {
     } catch (_) {
       return {
         isRegistrationOpen: true,
-        enrolledCount: 342,
+        enrolledCount: 0,
         dbStatus: 'Online',
         activeAcademicYear: 'AY 2025-2026',
-        capacityPct: 68.4,
-        programsCount: 10,
-        pendingReviewCount: 14
+        capacityPct: 0,
+        programsCount: 0,
+        pendingReviewCount: 0,
+        recycleBinCount: 0,
+        programCounts: {}
       };
     }
   },
@@ -135,11 +121,11 @@ export const statsApi = {
       return await request('/admin/capacity');
     } catch (_) {
       return {
-        usedRecords: 342,
+        usedRecords: 0,
         maxRecords: 500,
-        storageUsedMb: 48.2,
+        storageUsedMb: 0,
         storageMaxMb: 500,
-        percentage: 68.4
+        percentage: 0
       };
     }
   },
@@ -148,13 +134,7 @@ export const statsApi = {
     try {
       return await request('/admin/feed');
     } catch (_) {
-      return [
-        { id: 'feed-1', name: 'Hernandez, John Benedict G.', course: 'BSCpE', section: '1-2', time: 'Just now' },
-        { id: 'feed-2', name: 'Santos, Maria Nicole T.', course: 'BSCpE', section: '1-2', time: '2m ago' },
-        { id: 'feed-3', name: 'Fernandez, Christian Gabriel P.', course: 'BSIT', section: '3-1', time: '5m ago' },
-        { id: 'feed-4', name: 'Dela Cruz, Rica Joy B.', course: 'BSBA-HRM', section: '2-1', time: '8m ago' },
-        { id: 'feed-5', name: 'Reyes, Mark Andrei P.', course: 'BSIE', section: '1-1', time: '12m ago' }
-      ];
+      return [];
     }
   }
 };
@@ -186,20 +166,10 @@ export const studentApi = {
       signature_data: studentData.signatureUrl,
     };
 
-    try {
-      return await request('/students/register', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      console.warn('[studentApi.register] Backend unavailable, simulating local success:', err.message);
-      return {
-        success: true,
-        registration_id: `REG-${Date.now()}`,
-        student_number: payload.student_number,
-        message: 'Student registered successfully (offline simulation).'
-      };
-    }
+    return await request('/students/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async getAll(params = {}) {

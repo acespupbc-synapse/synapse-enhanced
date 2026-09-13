@@ -134,7 +134,7 @@ async def register_student(
 
     # Resolve course
     course_result = await db.execute(
-        select(Course).where(Course.code == payload.course.upper())
+        select(Course).where(func.upper(Course.code) == payload.course.strip().upper())
     )
     course = course_result.scalar_one_or_none()
 
@@ -146,7 +146,7 @@ async def register_student(
             select(Section).where(
                 Section.course_id == course.id,
                 Section.year_level == year_int,
-                Section.name == payload.section,
+                func.upper(Section.name) == payload.section.strip().upper(),
             )
         )
         section = sec_result.scalar_one_or_none()
@@ -240,11 +240,11 @@ async def list_students(
         )
 
     if program:
-        course_ids = select(Course.id).where(Course.code == program.upper())
+        course_ids = select(Course.id).where(func.upper(Course.code) == program.strip().upper())
         q = q.where(Student.course_id.in_(course_ids))
 
     if section:
-        sec_ids = select(Section.id).where(Section.name == section)
+        sec_ids = select(Section.id).where(func.upper(Section.name) == section.strip().upper())
         q = q.where(Student.section_id.in_(sec_ids))
 
     if status:
