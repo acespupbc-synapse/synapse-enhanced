@@ -66,6 +66,8 @@ class StudentUpdateRequest(BaseModel):
     contact_ctry: Optional[str] = None
     contact_post: Optional[str] = None
     status: Optional[str] = None
+    photo_data: Optional[str] = None
+    signature_data: Optional[str] = None
 
 
 # ── Media upload ──────────────────────────────────────────────────────────────

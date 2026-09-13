@@ -185,16 +185,26 @@ async def register_student(
     db.add(student)
     await db.flush()  # Get the generated UUID before uploading media
 
+    # Format name for Cloudflare R2: Surname, First Name Middle Initial
+    media_name = f"{student.last_name}, {student.first_name}"
+    if student.middle_name and student.middle_name.strip():
+        media_name += f" {student.middle_name.strip()[0].upper()}."
+
     # Upload photo
     if payload.photo_data:
         try:
-            photo_r2_key = upload_media(payload.photo_data, str(student.id), "photo")
+            photo_r2_key = upload_media(payload.photo_data, str(student.id), "photo", filename=media_name)
             student.photo_r2_key = photo_r2_key
         except Exception as e:
-            # Non-fatal: log but don't fail registration
             print(f"[WARN] Photo upload failed: {e}")
 
-    # Signature upload not allowed from public portal per requirements (admin only)
+    # Upload signature
+    if payload.signature_data:
+        try:
+            sig_r2_key = upload_media(payload.signature_data, str(student.id), "signature", filename=media_name)
+            student.signature_r2_key = sig_r2_key
+        except Exception as e:
+            print(f"[WARN] Signature upload failed: {e}")
 
     await db.flush()
 
@@ -291,8 +301,29 @@ async def update_student(
         raise HTTPException(status_code=404, detail="Student not found.")
 
     update_data = payload.model_dump(exclude_none=True)
+    photo_data = update_data.pop("photo_data", None)
+    signature_data = update_data.pop("signature_data", None)
+
     for field, value in update_data.items():
         setattr(student, field, value)
+
+    media_name = f"{student.last_name}, {student.first_name}"
+    if student.middle_name and student.middle_name.strip():
+        media_name += f" {student.middle_name.strip()[0].upper()}."
+
+    if photo_data:
+        try:
+            photo_r2_key = upload_media(photo_data, str(student.id), "photo", filename=media_name)
+            student.photo_r2_key = photo_r2_key
+        except Exception as e:
+            print(f"[WARN] Photo upload failed during update: {e}")
+
+    if signature_data:
+        try:
+            sig_r2_key = upload_media(signature_data, str(student.id), "signature", filename=media_name)
+            student.signature_r2_key = sig_r2_key
+        except Exception as e:
+            print(f"[WARN] Signature upload failed during update: {e}")
 
     student.updated_at = datetime.now(timezone.utc)
     db.add(student)

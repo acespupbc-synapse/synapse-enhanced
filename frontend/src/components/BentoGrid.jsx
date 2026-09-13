@@ -51,7 +51,7 @@ function PersonAvatar({ size = 50, photoUrl }) {
   );
 }
 
-export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
+export default function BentoGrid({ stats, capacity: propCapacity, feed: propFeed, onNavigateTab, onShowToast }) {
   // ── Live Clock ────────────────────────────────────────────────────────────
   const [now, setNow] = useState(new Date());
   const [editingStudent, setEditingStudent] = useState(null);
@@ -65,38 +65,45 @@ export default function BentoGrid({ stats, onNavigateTab, onShowToast }) {
   const date = formatDate(now);
 
   // ── Dashboard Data (Live from Backend / Supabase) ────────────────────────
-  const [liveFeed, setLiveFeed] = useState([]);
-  const [capacity, setCapacity] = useState({
+  const [internalFeed, setInternalFeed] = useState([]);
+  const [internalCapacity, setInternalCapacity] = useState({
     usedRecords: stats?.enrolledCount || 0,
     maxRecords: 500,
-    percentage: 0,
-    storageUsedMb: 4.5,
+    percentage: 2.10,
+    storageUsedMb: 10.52,
     storageMaxMb: 500,
   });
 
   useEffect(() => {
-    statsApi.getLiveFeed().then((data) => {
-      if (Array.isArray(data)) {
-        setLiveFeed(
-          data.map((item) => ({
-            id: item.id,
-            name: item.name,
-            course: item.course,
-            section: `${item.course || ''} ${item.section || ''}`.trim() || '—',
-            studentNumber: item.student_number || '',
-            photoUrl: item.photo_url || null,
-            time: item.time
-              ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : 'Recently',
-          }))
-        );
-      }
-    }).catch(() => {});
+    if (!propFeed) {
+      statsApi.getLiveFeed().then((data) => {
+        if (Array.isArray(data)) {
+          setInternalFeed(
+            data.map((item) => ({
+              id: item.id,
+              name: item.name,
+              course: item.course,
+              section: `${item.course || ''} ${item.section || ''}`.trim() || '—',
+              studentNumber: item.student_number || '',
+              photoUrl: item.photo_url || null,
+              time: item.time
+                ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Recently',
+            }))
+          );
+        }
+      }).catch(() => {});
+    }
 
-    statsApi.getCapacityMetrics().then((data) => {
-      if (data) setCapacity(data);
-    }).catch(() => {});
-  }, [stats?.enrolledCount]);
+    if (!propCapacity) {
+      statsApi.getCapacityMetrics().then((data) => {
+        if (data) setInternalCapacity(data);
+      }).catch(() => {});
+    }
+  }, [stats?.enrolledCount, propFeed, propCapacity]);
+
+  const capacity = propCapacity || internalCapacity;
+  const liveFeed = propFeed || internalFeed;
 
   const cpu = stats?.cpuPercent != null ? `${stats.cpuPercent}%` : '0%';
   const apiHealth = stats?.latencyMs != null ? `${stats.latencyMs} ms` : '—';

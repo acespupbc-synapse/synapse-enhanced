@@ -16,9 +16,7 @@ import {
   CheckCircle,
   X,
   GraduationCap,
-  FileCsv,
-  FileText,
-  FilePdf,
+  Faders,
 } from '@phosphor-icons/react';
 import { studentApi, statsApi, exportApi } from '../../services/api';
 import { CameraModal, CropperModal, SignatureModal } from '../common/MediaModals';
@@ -581,7 +579,10 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
             time: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recently'
           }));
           setStudents(mapped);
-          setActiveSection({ sec: 'All', count: mapped.length });
+          const computedSections = buildSections(program.code, mapped);
+          const firstYr = Object.keys(computedSections)[0];
+          const initialSec = computedSections[firstYr]?.[0] || { sec: '1-1', count: 0 };
+          setActiveSection(initialSec);
         }
       })
       .catch(() => {})
@@ -632,9 +633,9 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
       (s.studentNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSection =
       !activeSection ||
-      activeSection.sec === 'All' ||
       s.section === activeSection.sec ||
-      s.section?.endsWith(activeSection.sec);
+      s.section?.endsWith(activeSection.sec) ||
+      s.section === `${program.code} ${activeSection.sec}`;
     return matchesSearch && matchesSection;
   });
 
@@ -680,46 +681,25 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
   };
 
   return (
-    <div className="regs-drilldown-page">
-      {/* Top breadcrumb navigation */}
-      <div className="regs-drilldown-header">
+    <div className="regs-drilldown">
+      {/* Breadcrumb title */}
+      <h1 className="regs-drilldown-title">
         <button
           type="button"
-          className="regs-back-btn"
           onClick={onBack}
-          title="Back to Organizations"
+          className="regs-breadcrumb-back"
+          aria-label="Back to registrations"
         >
-          <CaretLeft size={16} weight="bold" />
-          <span>Organizations</span>
+          Registrations
         </button>
-        <span className="regs-drilldown-sep">/</span>
-        <span className="regs-drilldown-org">{org?.code || 'PUPBC'}</span>
-        <span className="regs-drilldown-sep">/</span>
-        <h2 className="regs-drilldown-title">
-          {program.code} <span>— {program.name}</span>
-        </h2>
-      </div>
+        {' '}
+        <span>/ {org?.code || 'ACES'} - {program.code}</span>
+      </h1>
 
       <div className="regs-drilldown-body">
-        {/* Left: Section navigation */}
-        <nav className="regs-nav-panel" aria-label="Section Navigation">
-          <div className="regs-nav-panel-title">Sections</div>
-
-          {/* All sections button */}
-          <button
-            className={`regs-section-btn ${activeSection?.sec === 'All' ? 'active' : ''}`}
-            onClick={() => setActiveSection({ sec: 'All', count: students.length })}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Folder size={14} weight="fill" />
-              All Sections
-            </div>
-            <span className="regs-section-count">
-              <Users size={11} weight="fill" />
-              {students.length}
-            </span>
-          </button>
-
+        {/* Left: Navigation Panel */}
+        <nav className="regs-nav-panel" aria-label="Section navigation">
+          <div className="regs-nav-panel-title">Navigation Panel</div>
           {yearLevels.map(year => (
             <React.Fragment key={year}>
               <div className="regs-nav-year-label">{year}</div>
@@ -751,20 +731,11 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
             style={{ backgroundImage: org?.header ? `url(${org.header})` : 'none' }}
           >
             <div className="regs-panel-header-left">
-              <GraduationCap size={40} weight="fill" color="#FFFFFF" style={{ flexShrink: 0 }} />
+              <GraduationCap size={36} weight="fill" color="#FFFFFF" style={{ flexShrink: 0 }} />
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span className="regs-program-code-pill">{program.code}</span>
-                  <span className="regs-program-org-pill">{org?.code || 'PUPBC'}</span>
-                </div>
                 <div className="regs-panel-program-name">{program.name}</div>
-                <div className="regs-panel-section-label">
-                  Section: <strong>{activeSection?.sec === 'All' ? 'All Sections' : activeSection?.sec}</strong> ({sorted.length} enrolled)
-                </div>
+                <div className="regs-panel-section-label">Section: {activeSection?.sec ?? '1-1'}</div>
               </div>
-            </div>
-            <div className="regs-panel-header-right">
-              {org?.logo && <img src={org.logo} alt={org.code} className="regs-panel-header-logo-badge" />}
             </div>
           </div>
 
@@ -813,36 +784,9 @@ function DrilldownView({ org, program, onBack, onShowToast }) {
               )}
             </div>
 
-            {/* Section Export Action Buttons */}
-            <div className="regs-export-group">
-              <button
-                type="button"
-                className="btn-regs-export btn-export-csv"
-                title={`Export ${activeSection?.sec !== 'All' ? activeSection?.sec : 'All'} as CardFive MDB CSV`}
-                onClick={() => handleSectionExport('csv')}
-              >
-                <FileCsv size={15} weight="bold" />
-                <span>MDB CSV</span>
-              </button>
-              <button
-                type="button"
-                className="btn-regs-export btn-export-xlsx"
-                title={`Export ${activeSection?.sec !== 'All' ? activeSection?.sec : 'All'} as Excel XLSX`}
-                onClick={() => handleSectionExport('xlsx')}
-              >
-                <FileText size={15} weight="bold" />
-                <span>Excel</span>
-              </button>
-              <button
-                type="button"
-                className="btn-regs-export btn-export-pdf"
-                title={`Export ${activeSection?.sec !== 'All' ? activeSection?.sec : 'All'} as PDF Report`}
-                onClick={() => handleSectionExport('pdf')}
-              >
-                <FilePdf size={15} weight="bold" />
-                <span>PDF</span>
-              </button>
-            </div>
+            <button className="regs-filter-icon-btn" aria-label="Filter options">
+              <Faders size={15} />
+            </button>
           </div>
 
           {/* Student list */}

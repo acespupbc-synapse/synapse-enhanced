@@ -281,3 +281,141 @@ async def export_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+# ── Full Complete Archive Export (ZIP: CSV + XLSX + JSON + Photos + Signatures) ────────
+
+@router.get("/archive")
+async def export_archive(
+    db: AsyncSession = Depends(get_db),
+    _admin: AdminUser = Depends(get_current_admin),
+):
+    import json
+    import re
+    import zipfile
+    import openpyxl
+    from app.core.config import get_settings
+    from app.core.r2_storage import _get_client
+
+    settings_cfg = get_settings()
+    students = await _get_active_students(db)
+
+    # 1. Generate CardFive MDB CSV
+    csv_headers = [
+        "STUDNO", "LASTNAME", "GENDER", "MDLENAME", "BRTHPLCE", "ADMSYEAR",
+        "FRSTNAME", "BRTHDATE", "EMAILADR", "MPHNNMBR", "PERMBLDG", "PROGCODE",
+        "PERMDSTR", "PERMCITY", "PERMSTAD", "PERMCTRY", "PERMPOST", "PHNENMBR",
+        "PERMSTRT", "CTCTPRSN", "CTCTBLDG", "CTCTDSTR", "CTCTCITY", "CTCTSTAD",
+        "CTCTPOST", "CPHNNMBR", "CTCTSTRT", "RCRDDATE", "CTCTNMBR", "ACADLEVL",
+    ]
+    csv_rows = [",".join(csv_headers)]
+    for s in students:
+        try:
+            record = transform_student_to_mdb_csv(s)
+            row = [f'"{getattr(record, h, "")}"' for h in csv_headers]
+            csv_rows.append(",".join(row))
+        except Exception:
+            continue
+    csv_data = "\n".join(csv_rows)
+
+    # 2. Generate Excel (XLSX)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Student Registrations"
+    col_headers = [
+        "Student No.", "Last Name", "First Name", "Middle Name", "Gender",
+        "Birth Date", "Email", "Course", "Section", "Year Level",
+        "Academic Year", "Residential Address", "Contact Person",
+        "Contact Number", "Contact Address", "Status", "Registered On",
+    ]
+    for col_idx, h in enumerate(col_headers, start=1):
+        ws.cell(row=1, column=col_idx, value=h)
+    for row_idx, s in enumerate(students, start=2):
+        ws.cell(row=row_idx, column=1, value=s.student_number)
+        ws.cell(row=row_idx, column=2, value=s.last_name)
+        ws.cell(row=row_idx, column=3, value=s.first_name)
+        ws.cell(row=row_idx, column=4, value=s.middle_name or "")
+        ws.cell(row=row_idx, column=5, value=s.gender or "")
+        ws.cell(row=row_idx, column=6, value=s.birth_date.strftime("%Y-%m-%d") if s.birth_date else "")
+        ws.cell(row=row_idx, column=7, value=s.email)
+        ws.cell(row=row_idx, column=8, value=s.course.code if s.course else "")
+        ws.cell(row=row_idx, column=9, value=s.section.name if s.section else "")
+        ws.cell(row=row_idx, column=10, value=s.section.year_level if s.section else "")
+        ws.cell(row=row_idx, column=11, value=s.academic_year.name if s.academic_year else "")
+        ws.cell(row=row_idx, column=12, value=s.perm_strt or "")
+        ws.cell(row=row_idx, column=13, value=s.contact_person_name or "")
+        ws.cell(row=row_idx, column=14, value=s.contact_person_number or "")
+        ws.cell(row=row_idx, column=15, value=s.contact_strt or "")
+        ws.cell(row=row_idx, column=16, value=s.status)
+        ws.cell(row=row_idx, column=17, value=s.created_at.strftime("%Y-%m-%d") if s.created_at else "")
+    xlsx_buf = io.BytesIO()
+    wb.save(xlsx_buf)
+    xlsx_data = xlsx_buf.getvalue()
+
+    # 3. Generate JSON database records
+    json_records = []
+    for s in students:
+        json_records.append({
+            "id": str(s.id),
+            "student_number": s.student_number,
+            "first_name": s.first_name,
+            "middle_name": s.middle_name,
+            "last_name": s.last_name,
+            "gender": s.gender,
+            "birth_date": s.birth_date.isoformat() if s.birth_date else None,
+            "email": s.email,
+            "course": s.course.code if s.course else None,
+            "section": s.section.name if s.section else None,
+            "academic_year": s.academic_year.name if s.academic_year else None,
+            "residential_address": s.perm_strt,
+            "contact_person": s.contact_person_name,
+            "contact_number": s.contact_person_number,
+            "photo_key": s.photo_r2_key,
+            "signature_key": s.signature_r2_key,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        })
+    json_data = json.dumps({
+        "archiveType": "ACES_SYNAPSE_COMPLETE_ARCHIVE",
+        "exportedAt": datetime.now().isoformat(),
+        "totalRecords": len(students),
+        "records": json_records
+    }, indent=2)
+
+    # 4. Assemble ZIP
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("CardFive_MDB_Export.csv", csv_data)
+        zf.writestr("Students_Roster.xlsx", xlsx_data)
+        zf.writestr("Database_Records.json", json_data)
+        zf.writestr("README.txt", f"ACES Synapse Complete Backup Archive\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nTotal Student Records: {len(students)}\n")
+
+        # Download media from R2
+        try:
+            r2_client = _get_client()
+            bucket = settings_cfg.cf_r2_bucket_name
+            for s in students:
+                safe_sno = re.sub(r'[^A-Za-z0-9_-]', '_', s.student_number)
+                if s.photo_r2_key:
+                    try:
+                        obj = r2_client.get_object(Bucket=bucket, Key=s.photo_r2_key)
+                        zf.writestr(f"photos/{safe_sno}.jpg", obj["Body"].read())
+                    except Exception:
+                        pass
+                if s.signature_r2_key:
+                    try:
+                        obj = r2_client.get_object(Bucket=bucket, Key=s.signature_r2_key)
+                        zf.writestr(f"signatures/{safe_sno}.jpg", obj["Body"].read())
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[WARN] Archive R2 media bundle: {e}")
+
+    zip_buffer.seek(0)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    filename = f"ACES_Synapse_Complete_Archive_{date_str}.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

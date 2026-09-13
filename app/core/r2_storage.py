@@ -55,10 +55,12 @@ def upload_media(
     data_url: str,
     student_id: str,
     media_type: str,  # "photo" or "signature"
+    filename: Optional[str] = None,
 ) -> str:
     """
     Upload a base64 DataURL to Cloudflare R2.
-
+    If filename is provided (e.g. 'HERNANDEZ, JOHN BENEDICT G.'), saves as:
+    '{media_type}s/{clean_name}.jpg'
     Returns the R2 object key (not a URL — use get_presigned_url() to get readable URL).
     """
     raw_bytes, content_type = decode_data_url(data_url)
@@ -67,7 +69,12 @@ def upload_media(
     if content_type not in ("image/jpeg", "image/jpg"):
         content_type = "image/jpeg"
 
-    object_key = f"students/{student_id}/{media_type}.jpg"
+    if filename:
+        clean_name = re.sub(r'[/\\:*?"<>|]', '', filename).strip()
+        object_key = f"{media_type}s/{clean_name}.jpg"
+    else:
+        object_key = f"students/{student_id}/{media_type}.jpg"
+
     client = _get_client()
 
     client.put_object(

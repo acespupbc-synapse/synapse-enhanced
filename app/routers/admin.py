@@ -90,6 +90,24 @@ async def get_stats(
     }
 
 
+import time
+
+_db_size_cache = {"mb": 10.52, "ts": 0}
+
+
+async def _get_db_storage_mb(db: AsyncSession) -> float:
+    now = time.time()
+    if now - _db_size_cache["ts"] > 45:
+        try:
+            db_size_res = await db.execute(select(func.pg_database_size(func.current_database())))
+            size_bytes = db_size_res.scalar() or 0
+            _db_size_cache["mb"] = round(size_bytes / (1024 * 1024), 2)
+            _db_size_cache["ts"] = now
+        except Exception:
+            pass
+    return _db_size_cache["mb"]
+
+
 @router.get("/capacity")
 async def get_capacity(
     db: AsyncSession = Depends(get_db),
@@ -100,24 +118,33 @@ async def get_capacity(
     )
     used = enrolled.scalar_one() or 0
     max_records = 500
+    storage_max_mb = 500
 
-    # Query actual PostgreSQL database size
-    db_bytes = 0
-    try:
-        db_size_res = await db.execute(select(func.pg_database_size(func.current_database())))
-        db_bytes = db_size_res.scalar() or 0
-    except Exception:
-        db_bytes = 8 * 1024 * 1024
-
-    storage_mb = round(db_bytes / (1024 * 1024), 2)
-    pct = round((used / max_records) * 100, 2)
+    storage_mb = await _get_db_storage_mb(db)
+    # Correct formula: (storage_used / storage_max) * 100
+    pct = round((storage_mb / storage_max_mb) * 100, 2)
 
     return {
         "usedRecords": used,
         "maxRecords": max_records,
         "percentage": pct,
         "storageUsedMb": storage_mb,
-        "storageMaxMb": 500,
+        "storageMaxMb": storage_max_mb,
+    }
+
+
+@router.get("/dashboard")
+async def get_full_dashboard(
+    db: AsyncSession = Depends(get_db),
+    _admin: AdminUser = Depends(get_current_admin),
+):
+    stats = await get_stats(db, _admin)
+    capacity = await get_capacity(db, _admin)
+    feed = await get_live_feed(db, _admin)
+    return {
+        "stats": stats,
+        "capacity": capacity,
+        "feed": feed,
     }
 
 

@@ -17,7 +17,7 @@ import {
   FileArchive,
   CaretDown
 } from '@phosphor-icons/react';
-import { studentApi, settingsApi, authApi } from '../../services/api';
+import { studentApi, settingsApi, authApi, exportApi } from '../../services/api';
 import './SettingsView.css';
 
 export default function SettingsView({ stats, onToggleRegistration, onShowToast }) {
@@ -33,6 +33,8 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
   const [showAddAYModal, setShowAddAYModal] = useState(false);
   const [newAYInput, setNewAYInput] = useState('');
   const [newAYError, setNewAYError] = useState('');
+  const [showAYWarningModal, setShowAYWarningModal] = useState(false);
+  const [pendingAY, setPendingAY] = useState(null);
 
   // Dropdowns
   const [isAYDropdownOpen, setIsAYDropdownOpen] = useState(false);
@@ -50,10 +52,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
 
   // ── Portal & Session Settings State ───────────────────────────────────────
   const [academicYears, setAcademicYears] = useState([
-    '2024-2025',
-    '2025-2026',
-    '2026-2027',
-    '2027-2028'
+    '2026-2027'
   ]);
 
   const [portalConfig, setPortalConfig] = useState({
@@ -233,48 +232,27 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
     }
   };
 
-  // Download Complete Archive (Database + Photos + Signatures)
+  // Download Complete Archive (Genuine .ZIP containing CSV, XLSX, JSON and Cloudflare R2 Photos & Signatures)
   const handleDownloadCompleteArchive = async () => {
-    let records = [];
-    try {
-      const liveStudents = await studentApi.getAll();
-      if (Array.isArray(liveStudents)) {
-        records = liveStudents;
-      }
-    } catch (_) {}
-
-    const fullArchivePayload = {
-      archiveType: 'ACES_SYNAPSE_FULL_BACKUP',
-      exportedAt: new Date().toISOString(),
-      academicYear: portalConfig.academicYear,
-      campus: 'PUP Biñan Campus',
-      configuration: {
-        portalConfig,
-        ruleConfig,
-        securityConfig: {
-          adminEmail: securityConfig.adminEmail,
-          sessionTimeoutMins: securityConfig.sessionTimeoutMins,
-          enableAuditLog: securityConfig.enableAuditLog
-        }
-      },
-      databaseRecords: records,
-      mediaSummary: {
-        totalRecords: records.length,
-        storageProvider: 'Cloudflare R2 (synapse-media)'
-      }
-    };
-
-    const blob = new Blob([JSON.stringify(fullArchivePayload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `synapse_full_archive_AY${portalConfig.academicYear}_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
     if (onShowToast) {
-      onShowToast('Complete archive (DB + Photos + Signatures) downloaded.');
+      onShowToast('Preparing complete system archive (.zip) with CSV, Excel, JSON, and Cloudflare R2 media...');
+    }
+
+    try {
+      const ok = await exportApi.downloadArchive();
+      if (ok) {
+        if (onShowToast) {
+          onShowToast('Complete system archive (.zip) downloaded successfully.');
+        }
+      } else {
+        if (onShowToast) {
+          onShowToast('Could not download complete archive. Server returned no data.');
+        }
+      }
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(`Archive download error: ${err.message}`);
+      }
     }
   };
 
@@ -458,7 +436,10 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                                 type="button"
                                 className={`settings-dropdown-item ${portalConfig.academicYear === ay ? 'active' : ''}`}
                                 onClick={() => {
-                                  setPortalConfig(p => ({ ...p, academicYear: ay }));
+                                  if (ay !== portalConfig.academicYear) {
+                                    setPendingAY(ay);
+                                    setShowAYWarningModal(true);
+                                  }
                                   setIsAYDropdownOpen(false);
                                 }}
                               >
@@ -483,7 +464,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                             }}
                           >
                             <Plus size={14} weight="bold" />
-                            <span>Add Another Academic Year</span>
+                            <span>Add Future Academic Year</span>
                           </button>
                         </div>
                       )}
@@ -936,6 +917,63 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast 
                 style={{ opacity: dangerConfirmText === 'DELETE' ? 1 : 0.5 }}
               >
                 Empty Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Academic Year Change Warning Modal */}
+      {showAYWarningModal && (
+        <div className="settings-modal-overlay" role="dialog" aria-modal="true">
+          <div className="settings-modal-dialog" style={{ maxWidth: 440 }}>
+            <div className="settings-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#F59E0B' }}>
+                <WarningCircle size={24} weight="bold" />
+                <h3 className="settings-modal-title">Change Academic Year?</h3>
+              </div>
+              <button
+                type="button"
+                className="settings-modal-close"
+                onClick={() => {
+                  setShowAYWarningModal(false);
+                  setPendingAY(null);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="settings-modal-desc" style={{ marginBottom: 20, lineHeight: 1.5 }}>
+              Are you sure you want to switch the active Academic Year to <strong>{pendingAY}</strong>? This will alter active registration workflows, statistics tracking, and default student records.
+            </p>
+
+            <div className="settings-modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setShowAYWarningModal(false);
+                  setPendingAY(null);
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ background: '#7B0000', color: '#FFFFFF', border: 'none', padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+                onClick={() => {
+                  setPortalConfig(p => ({ ...p, academicYear: pendingAY }));
+                  setShowAYWarningModal(false);
+                  if (onShowToast) {
+                    onShowToast(`Academic Year changed to ${pendingAY}. Click "Save Changes" to apply.`);
+                  }
+                  setPendingAY(null);
+                }}
+              >
+                Confirm Change
               </button>
             </div>
           </div>

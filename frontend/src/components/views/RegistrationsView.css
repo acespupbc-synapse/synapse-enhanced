@@ -170,8 +170,28 @@
   flex-shrink: 0;
 }
 
+.regs-breadcrumb-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  display: inline-flex;
+  align-items: center;
+  font-size: 2rem;
+  font-weight: 700;
+  padding: 0;
+  vertical-align: baseline;
+  font-family: inherit;
+  letter-spacing: -0.02em;
+  transition: color 0.15s ease;
+}
+
+.regs-breadcrumb-back:hover {
+  color: #FFFFFF;
+}
+
 .regs-drilldown-title span {
-  color: rgba(255,255,255,0.4);
+  color: rgba(255, 255, 255, 0.4);
   font-weight: 400;
 }
 

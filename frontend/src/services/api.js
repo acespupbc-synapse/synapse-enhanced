@@ -122,6 +122,20 @@ export const statsApi = {
     }
   },
 
+  async getFullDashboard() {
+    const t0 = performance.now();
+    try {
+      const data = await request('/admin/dashboard');
+      const latencyMs = Math.max(1, Math.round(performance.now() - t0));
+      return {
+        ...data,
+        stats: { ...data.stats, latencyMs },
+      };
+    } catch (_) {
+      return null;
+    }
+  },
+
   async getCapacityMetrics() {
     try {
       return await request('/admin/capacity');
@@ -414,6 +428,26 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadPdf] Failed:', err.message);
+      return false;
+    }
+  },
+
+  async downloadArchive() {
+    try {
+      const blob = await request('/admin/exports/archive', {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ACES_Synapse_Complete_Archive_${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return true;
+    } catch (err) {
+      console.warn('[exportApi.downloadArchive] Failed:', err.message);
       return false;
     }
   }

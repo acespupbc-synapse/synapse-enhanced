@@ -5,13 +5,13 @@ import Sidebar from './components/Sidebar';
 import BentoGrid from './components/BentoGrid';
 import RegistrationsView from './components/views/RegistrationsView';
 import ProgramsView from './components/views/ProgramsView';
-import ExportView from './components/views/ExportView';
 import RecycleBinView from './components/views/RecycleBinView';
 import SettingsView from './components/views/SettingsView';
+import HomeView from './components/views/HomeView';
 import LoginView from './components/views/LoginView';
 import StudentRegistrationView from './components/views/StudentRegistrationView';
 import RegistrationClosedView from './components/views/RegistrationClosedView';
-import { statsApi, settingsApi, exportApi, authApi } from './services/api';
+import { statsApi, settingsApi, authApi } from './services/api';
 import './index.css';
 
 export default function App() {
@@ -37,34 +37,84 @@ export default function App() {
     programCounts: {},
   });
 
-  // Fetch live stats from backend
-  const fetchStats = useCallback(async () => {
+  const [dashboardCapacity, setDashboardCapacity] = useState({
+    usedRecords: 0,
+    maxRecords: 500,
+    percentage: 2.10,
+    storageUsedMb: 10.52,
+    storageMaxMb: 500,
+  });
+
+  const [dashboardFeed, setDashboardFeed] = useState([]);
+
+  // Fetch unified dashboard bundle from backend (stats + capacity + feed in 1 roundtrip)
+  const fetchFullDashboard = useCallback(async () => {
     try {
-      const data = await statsApi.getDashboardStats();
-      setStats((prev) => ({
-        ...prev,
-        isRegistrationOpen: data.isRegistrationOpen ?? prev.isRegistrationOpen,
-        enrolledCount: data.enrolledCount ?? prev.enrolledCount,
-        dbStatus: data.dbStatus ?? prev.dbStatus,
-        ayName: data.activeAcademicYear ?? prev.ayName,
-        recycleBinCount: data.recycleBinCount ?? 0,
-        programCounts: data.programCounts ?? {},
-        cpuPercent: data.cpuPercent ?? 0,
-        latencyMs: data.latencyMs ?? 0,
-      }));
+      const data = await statsApi.getFullDashboard();
+      if (data) {
+        if (data.stats) {
+          setStats((prev) => ({
+            ...prev,
+            isRegistrationOpen: data.stats.isRegistrationOpen ?? prev.isRegistrationOpen,
+            enrolledCount: data.stats.enrolledCount ?? prev.enrolledCount,
+            dbStatus: data.stats.dbStatus ?? prev.dbStatus,
+            ayName: data.stats.activeAcademicYear ?? prev.ayName,
+            recycleBinCount: data.stats.recycleBinCount ?? 0,
+            programCounts: data.stats.programCounts ?? {},
+            cpuPercent: data.stats.cpuPercent ?? 0,
+            latencyMs: data.stats.latencyMs ?? 0,
+          }));
+        }
+        if (data.capacity) {
+          setDashboardCapacity(data.capacity);
+        }
+        if (Array.isArray(data.feed)) {
+          setDashboardFeed(
+            data.feed.map((item) => ({
+              id: item.id,
+              name: item.name,
+              course: item.course,
+              section: `${item.course || ''} ${item.section || ''}`.trim() || '—',
+              studentNumber: item.student_number || '',
+              photoUrl: item.photo_url || null,
+              time: item.time
+                ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Recently',
+            }))
+          );
+        }
+      }
     } catch (_) {
-      // Backend not available — keep default values silently
+      // Graceful fallback
     }
   }, []);
 
-  // Polling interval: auto-refresh stats every 12 seconds when authenticated
+  // Optimized real-time polling: every 4 seconds when tab is visible, plus instant wakeup on focus
   useEffect(() => {
-    fetchStats();
-    if (isAuthenticated) {
-      const timer = setInterval(fetchStats, 12000);
-      return () => clearInterval(timer);
-    }
-  }, [isAuthenticated, fetchStats]);
+    fetchFullDashboard();
+    if (!isAuthenticated) return;
+
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchFullDashboard();
+      }
+    }, 4000);
+
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchFullDashboard();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+    };
+  }, [isAuthenticated, fetchFullDashboard]);
 
   // Theme synchronization with HTML root attribute
   useEffect(() => {
@@ -89,30 +139,46 @@ export default function App() {
     setStats((prev) => ({ ...prev, isRegistrationOpen: nextState }));
   };
 
-  const handleExportCsv = async () => {
-    try {
-      const downloaded = await exportApi.downloadCsv();
-      if (downloaded) {
-        showToast('CardFive MDB CSV downloaded successfully!');
-        return;
-      }
-    } catch (_) {}
-    showToast('Export failed or no records available.');
-  };
-
   const handleLogout = async () => {
     try {
       await authApi.logout();
     } catch (_) {}
     localStorage.removeItem('synapse_auth_token');
     setIsAuthenticated(false);
-    navigate('/login');
+    navigate('/home');
   };
 
   return (
     <>
       <Routes>
-        {/* Public Routes */}
+        {/* Root Redirect: unauthenticated -> /home, authenticated -> /dashboard */}
+        <Route
+          path="/"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Navigate to="/home" replace />
+            )
+          }
+        />
+
+        {/* Public Landing Homepage: /home */}
+        <Route
+          path="/home"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <div className="app-container">
+                <div className="login-bg-layer" />
+                <HomeView />
+              </div>
+            )
+          }
+        />
+
+        {/* Admin Login: /login */}
         <Route
           path="/login"
           element={
@@ -126,24 +192,24 @@ export default function App() {
                     setIsAuthenticated(true);
                     navigate('/dashboard');
                   }}
-                  onRegister={() => navigate('/register')}
                 />
               </div>
             )
           }
         />
 
+        {/* Student Registration Form */}
         <Route
           path="/register"
           element={
             !stats.isRegistrationOpen ? (
               <RegistrationClosedView
                 academicYear={stats.ayName}
-                onBack={() => navigate('/login')}
+                onBack={() => navigate(isAuthenticated ? '/dashboard' : '/home')}
               />
             ) : (
               <StudentRegistrationView
-                onBack={() => navigate(isAuthenticated ? '/dashboard' : '/login')}
+                onBack={() => navigate(isAuthenticated ? '/dashboard' : '/home')}
               />
             )
           }
@@ -177,6 +243,8 @@ export default function App() {
                       element={
                         <BentoGrid
                           stats={stats}
+                          capacity={dashboardCapacity}
+                          feed={dashboardFeed}
                           onNavigateTab={(tab, code) => {
                             if (code) navigate(`/registrations/${code}`);
                             else if (tab === 'recycle') navigate('/recycle-bin');
@@ -215,10 +283,6 @@ export default function App() {
                     />
                     <Route path="/programs" element={<ProgramsView />} />
                     <Route path="/recycle-bin" element={<RecycleBinView />} />
-                    <Route
-                      path="/export"
-                      element={<ExportView onExportCsv={handleExportCsv} />}
-                    />
                     <Route
                       path="/settings"
                       element={

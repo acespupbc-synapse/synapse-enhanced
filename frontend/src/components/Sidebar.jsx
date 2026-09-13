@@ -9,8 +9,7 @@ import {
   UserPlus,
   SignOut,
   List,
-  X,
-  FileCsv
+  X
 } from '@phosphor-icons/react';
 import './Sidebar.css';
 
@@ -28,7 +27,6 @@ export default function Sidebar({
     { id: 'registrations', path: '/registrations', label: 'Registrations',     icon: Users },
     { id: 'programs',      path: '/programs',      label: 'Academic Programs', icon: GraduationCap },
     { id: 'recycle',       path: '/recycle-bin',   label: 'Recycle Bin',       icon: Trash },
-    { id: 'export',        path: '/export',        label: 'MDB Export',        icon: FileCsv },
   ];
 
   const handleNavClick = (path) => {
