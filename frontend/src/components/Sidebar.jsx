@@ -27,6 +27,7 @@ export default function Sidebar({
     { id: 'registrations', path: '/registrations', label: 'Registrations',     icon: Users },
     { id: 'programs',      path: '/programs',      label: 'Programs',          icon: GraduationCap },
     { id: 'recycle',       path: '/recycle-bin',   label: 'Recycle Bin',       icon: Trash },
+    { id: 'settings',      path: '/settings',      label: 'Settings',          icon: Gear },
   ];
 
   const [navigatingPath, setNavigatingPath] = React.useState(null);
@@ -52,8 +53,6 @@ export default function Sidebar({
     if (item.path === '/dashboard') return location.pathname === '/dashboard';
     return location.pathname.startsWith(item.path);
   };
-
-  const isSettingsActive = location.pathname.startsWith('/settings');
 
   return (
     <>
@@ -113,8 +112,10 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* Action Buttons */}
-        <div className="sidebar-actions">
+        <div className="sidebar-spacer" />
+
+        {/* Bottom Actions: Student Registration & Logout */}
+        <div className="sidebar-footer">
           <button
             className="btn-sidebar-primary"
             onClick={onOpenRegistration || (() => navigate('/register'))}
@@ -124,24 +125,12 @@ export default function Sidebar({
             <span>Student Registration</span>
           </button>
           
-          <button className="btn-sidebar-danger" onClick={onLogout || (() => { localStorage.removeItem('synapse_auth_token'); navigate('/login'); })}>
+          <button
+            className="btn-sidebar-danger"
+            onClick={onLogout || (() => { localStorage.removeItem('synapse_auth_token'); navigate('/login'); })}
+          >
             <SignOut size={20} />
             <span>Logout</span>
-          </button>
-        </div>
-
-        <div className="sidebar-spacer" />
-
-        {/* Settings Footer */}
-        <div className="sidebar-footer">
-          <button
-            className={`nav-item ${isSettingsActive ? 'active' : ''}`}
-            onClick={() => handleNavClick('/settings')}
-          >
-            <span className="nav-item-icon">
-              <Gear size={20} weight={isSettingsActive ? 'fill' : 'regular'} />
-            </span>
-            <span className="nav-item-label">Settings</span>
           </button>
         </div>
       </aside>

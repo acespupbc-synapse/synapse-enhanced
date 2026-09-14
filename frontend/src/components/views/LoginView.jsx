@@ -108,7 +108,7 @@ export default function LoginView({ onLogin }) {
         </form>
 
         <div className="login-card-footer" style={{ marginTop: 24 }}>
-          ACES-PUPBC STUDENT INFORMATION SYSTEM
+          ASSOCIATION OF COMPUTER ENGINEERING STUDENTS - PUPBC
         </div>
       </div>
     </div>
