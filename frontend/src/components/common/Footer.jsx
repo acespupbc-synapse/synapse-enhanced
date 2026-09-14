@@ -8,9 +8,6 @@ export default function Footer({ className = '' }) {
       <div className="synapse-footer-left">
         <span className="synapse-footer-brand">© 2026 ACES-PUPBC Synapse</span>
         <span className="synapse-footer-version">Enhanced</span>
-        <span className="synapse-footer-sub">
-          For campus use only. Compliant with Data Privacy Act of 2012 (RA 10173).
-        </span>
       </div>
 
       <div className="synapse-footer-right">
