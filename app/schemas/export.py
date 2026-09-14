@@ -66,8 +66,9 @@ def transform_student_to_mdb_csv(student: Any) -> MDBCsvExportSchema:
     prog_code = ""
     if student.section:
         acad_level = year_map.get(student.section.year_level, "")
-        if student.course:
-            prog_code = to_upper(student.course.code)
+    if student.course:
+        raw_code = to_upper(student.course.code)
+        prog_code = "BSP" if raw_code in ("BSPSY", "BSP") else raw_code
 
     return MDBCsvExportSchema(
         STUDNO=to_upper(student.student_number),

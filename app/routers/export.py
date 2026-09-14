@@ -41,7 +41,11 @@ async def _get_active_students(
         .where(Student.deleted_at.is_(None))
     )
     if program:
-        query = query.join(Student.course).where(func.upper(Course.code) == program.strip().upper())
+        clean_prog = program.strip().upper()
+        if clean_prog in ("BSP", "BSPSY"):
+            query = query.join(Student.course).where(func.upper(Course.code).in_(["BSP", "BSPSY"]))
+        else:
+            query = query.join(Student.course).where(func.upper(Course.code) == clean_prog)
     if section:
         query = query.join(Student.section).where(func.upper(Section.name) == section.strip().upper())
 
@@ -83,10 +87,11 @@ async def export_csv(
     if students and students[0].academic_year:
         ay_str = students[0].academic_year.name.replace("AY ", "").replace("AY", "").strip()
 
-    if program and section:
-        filename = f"{ay_str}_{program}_{section}.csv"
-    elif program:
-        filename = f"{ay_str}_{program}.csv"
+    export_prog = "BSP" if (program and program.strip().upper() in ("BSPSY", "BSP")) else program
+    if export_prog and section:
+        filename = f"{ay_str}_{export_prog}_{section}.csv"
+    elif export_prog:
+        filename = f"{ay_str}_{export_prog}.csv"
     else:
         filename = f"{ay_str}_All_Registrations.csv"
 
@@ -139,10 +144,11 @@ async def export_mdb(
     if students and students[0].academic_year:
         ay_str = students[0].academic_year.name.replace("AY ", "").replace("AY", "").strip()
 
-    if program and section:
-        filename = f"{ay_str}_{program}_{section}.mdb"
-    elif program:
-        filename = f"{ay_str}_{program}.mdb"
+    export_prog = "BSP" if (program and program.strip().upper() in ("BSPSY", "BSP")) else program
+    if export_prog and section:
+        filename = f"{ay_str}_{export_prog}_{section}.mdb"
+    elif export_prog:
+        filename = f"{ay_str}_{export_prog}.mdb"
     else:
         filename = f"{ay_str}_All_Registrations.mdb"
 
@@ -474,7 +480,8 @@ async def export_archive(
         groups = {}
         for s in students:
             ay_dir = (s.academic_year.name if s.academic_year else "2026-2027").replace("AY", "").strip()
-            course_dir = s.course.code if s.course else "BSCpE"
+            raw_course = s.course.code if s.course else "BSCpE"
+            course_dir = "BSP" if raw_course.upper() in ("BSPSY", "BSP") else raw_course
             sec_dir = s.section.name if s.section else "1-1"
             key = (ay_dir, course_dir, sec_dir)
             if key not in groups:

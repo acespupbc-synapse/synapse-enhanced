@@ -1,6 +1,8 @@
 # Local reference databases
 reference/mdb/*.mdb
 reference/mdb/*.accdb
+reference/mdb/*.ldb
+reference/mdb/*.laccdb
 
 # Environment/secrets
 .env

@@ -439,9 +439,11 @@ export const exportApi = {
       const a = document.createElement('a');
       a.href = url;
       const ay = (filters.academicYear || '2026-2027').replace(/^AY\s*/i, '');
-      const filename = filters.program && filters.section
-        ? `${ay}_${filters.program}_${filters.section}.csv`
-        : (filters.program ? `${ay}_${filters.program}.csv` : `${ay}_All_Registrations.csv`);
+      const rawProg = filters.program?.toUpperCase();
+      const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;
+      const filename = exportProg && filters.section
+        ? `${ay}_${exportProg}_${filters.section}.csv`
+        : (exportProg ? `${ay}_${exportProg}.csv` : `${ay}_All_Registrations.csv`);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -464,9 +466,11 @@ export const exportApi = {
       const a = document.createElement('a');
       a.href = url;
       const ay = (filters.academicYear || '2026-2027').replace(/^AY\s*/i, '');
-      const filename = filters.program && filters.section
-        ? `${ay}_${filters.program}_${filters.section}.mdb`
-        : (filters.program ? `${ay}_${filters.program}.mdb` : `${ay}_All_Registrations.mdb`);
+      const rawProg = filters.program?.toUpperCase();
+      const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;
+      const filename = exportProg && filters.section
+        ? `${ay}_${exportProg}_${filters.section}.mdb`
+        : (exportProg ? `${ay}_${exportProg}.mdb` : `${ay}_All_Registrations.mdb`);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -487,8 +491,9 @@ export const exportApi = {
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      const tag = filters.program ? (filters.section ? `_${filters.program}_${filters.section}` : `_${filters.program}`) : '';
+      const rawProg = filters.program?.toUpperCase();
+      const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;
+      const tag = exportProg ? (filters.section ? `_${exportProg}_${filters.section}` : `_${exportProg}`) : '';
       a.download = `ACES_Synapse_Export${tag}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();

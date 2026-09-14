@@ -171,6 +171,9 @@ def generate_mdb_bytes_jackcess(
                     sf.write(cache[s.signature_r2_key])
                 sig_rel = f"signatures/{sig_name}"
 
+            raw_prog = (s.course.code or "") if s.course else ""
+            prog_code = "BSP" if raw_prog.strip().upper() in ("BSPSY", "BSP") else raw_prog.strip().upper()
+
             row = [
                 s.student_number or "",
                 (s.last_name or "").upper(),
@@ -179,7 +182,7 @@ def generate_mdb_bytes_jackcess(
                 s.gender or "",
                 s.birth_date.strftime("%m/%d/%Y") if s.birth_date else "",
                 s.email or "",
-                s.course.code if s.course else "",
+                prog_code,
                 "50",
                 s.perm_strt or "",
                 s.contact_person_name or "",
@@ -237,6 +240,9 @@ def generate_mdb_bytes_pyodbc(students, media_cache: Optional[dict[str, bytes]] 
             pic_param = pyodbc.Binary(photo_bytes) if photo_bytes else None
             sig_param = pyodbc.Binary(sig_bytes) if sig_bytes else None
 
+            raw_prog = (s.course.code or "") if s.course else ""
+            prog_code = "BSP" if raw_prog.strip().upper() in ("BSPSY", "BSP") else raw_prog.strip().upper()
+
             cur.execute(insert_sql, (
                 s.student_number or "",
                 (s.last_name or "").upper(),
@@ -245,7 +251,7 @@ def generate_mdb_bytes_pyodbc(students, media_cache: Optional[dict[str, bytes]] 
                 s.gender or "",
                 s.birth_date.strftime("%m/%d/%Y") if s.birth_date else "",
                 s.email or "",
-                s.course.code if s.course else "",
+                prog_code,
                 "50",
                 s.perm_strt or "",
                 s.contact_person_name or "",
