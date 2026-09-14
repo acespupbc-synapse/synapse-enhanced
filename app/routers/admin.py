@@ -38,6 +38,38 @@ async def _get_db_storage_mb(db: AsyncSession) -> float:
     return _db_size_cache["mb"]
 
 
+_r2_size_cache = {"mb": 1.08, "files": 6, "ts": 0}
+
+
+def _get_r2_storage_info(photo_count: int = 0, sig_count: int = 0) -> tuple[float, int]:
+    """
+    Get accurate Cloudflare R2 storage usage in MB and file count.
+    Queries R2 list_objects_v2 directly, cached for 60 seconds.
+    Falls back gracefully to tracked photo/sig count if R2 call fails.
+    """
+    now = time.time()
+    if now - _r2_size_cache["ts"] > 60:
+        try:
+            from app.core.r2_storage import _get_client
+            from app.core.config import get_settings
+            settings_cfg = get_settings()
+            client = _get_client()
+            res = client.list_objects_v2(Bucket=settings_cfg.cf_r2_bucket_name)
+            contents = res.get("Contents", [])
+            total_bytes = sum(o.get("Size", 0) for o in contents)
+            _r2_size_cache["mb"] = round(total_bytes / (1024 * 1024), 2)
+            _r2_size_cache["files"] = len(contents)
+            _r2_size_cache["ts"] = now
+        except Exception as e:
+            print(f"[WARN] Failed to fetch R2 bucket metrics: {e}")
+            fallback_files = (photo_count or 0) + (sig_count or 0)
+            _r2_size_cache["mb"] = round(fallback_files * 0.2, 2)
+            _r2_size_cache["files"] = fallback_files
+            _r2_size_cache["ts"] = now
+
+    return _r2_size_cache["mb"], _r2_size_cache["files"]
+
+
 def _get_cpu_percent() -> float:
     try:
         import psutil
@@ -120,8 +152,7 @@ async def get_capacity(
     storage_mb = await _get_db_storage_mb(db)
     pct = round((storage_mb / storage_max_mb) * 100, 2)
 
-    total_files = (photo_count or 0) + (sig_count or 0)
-    r2_used_mb = round(((photo_count or 0) * 1.5) + ((sig_count or 0) * 0.4), 2)
+    r2_used_mb, total_files = _get_r2_storage_info(photo_count, sig_count)
     r2_max_mb = 10000.0  # 10 GB free tier
     r2_pct = round((r2_used_mb / r2_max_mb) * 100, 2)
 
@@ -195,8 +226,7 @@ async def get_full_dashboard(
     storage_mb = await _get_db_storage_mb(db)
 
     # Cloudflare R2 Media Capacity
-    total_files = (photo_count or 0) + (sig_count or 0)
-    r2_used_mb = round(((photo_count or 0) * 1.5) + ((sig_count or 0) * 0.4), 2)
+    r2_used_mb, total_files = _get_r2_storage_info(photo_count, sig_count)
     r2_max_mb = 10000.0  # 10 GB free tier
     r2_pct = round((r2_used_mb / r2_max_mb) * 100, 2)
 

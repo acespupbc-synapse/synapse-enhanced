@@ -606,7 +606,7 @@ export function EditStudentModal({ student, onClose, onSave, onShowToast }) {
 
 // ── Drilldown View ─────────────────────────────────────────────────────────
 
-function DrilldownView({ org, program, onBack, onShowToast }) {
+function DrilldownView({ org, program, onBack, onShowToast, stats }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1108,6 +1108,7 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
         program={drilldown.program}
         onBack={() => navigate('/registrations')}
         onShowToast={onShowToast}
+        stats={liveStats ?? stats}
       />
     );
   }
