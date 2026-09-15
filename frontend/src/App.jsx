@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import BackgroundVanta from './components/BackgroundVanta';
 import Sidebar from './components/Sidebar';
 import BentoGrid from './components/BentoGrid';
@@ -419,6 +420,9 @@ export default function App() {
           {toast.loading && <span className="toast-spinner" aria-label="Loading..." />}
         </div>
       )}
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </>
   );
 }
