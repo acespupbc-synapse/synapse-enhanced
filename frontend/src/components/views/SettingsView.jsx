@@ -255,24 +255,42 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
 
   // Download Complete Archive (Genuine .ZIP containing CSV, XLSX, JSON and Cloudflare R2 Photos & Signatures)
   const handleDownloadCompleteArchive = async () => {
+    let finished = false;
+
+    // Stage 1: Compiling
     if (onShowToast) {
-      onShowToast('Preparing complete system archive (.zip) with CSV, Excel, JSON, and Cloudflare R2 media...');
+      onShowToast('Compiling system records...', { loading: true });
     }
 
+    // Stage 2: Bundling
+    const stage2Timer = setTimeout(() => {
+      if (!finished && onShowToast) {
+        onShowToast('Bundling R2 media & MDB databases...', { loading: true });
+      }
+    }, 2000);
+
+    // Stage 3: Exporting
+    const stage3Timer = setTimeout(() => {
+      if (!finished && onShowToast) {
+        onShowToast('Exporting complete archive (.zip)...', { loading: true });
+      }
+    }, 4800);
+
     try {
-      const ok = await exportApi.downloadArchive();
-      if (ok) {
-        if (onShowToast) {
-          onShowToast('Complete system archive (.zip) downloaded successfully.');
-        }
-      } else {
-        if (onShowToast) {
-          onShowToast('Could not download complete archive. Server returned no data.');
-        }
+      await exportApi.downloadArchive();
+      finished = true;
+      clearTimeout(stage2Timer);
+      clearTimeout(stage3Timer);
+
+      if (onShowToast) {
+        onShowToast('Complete system archive (.zip) downloaded successfully.');
       }
     } catch (err) {
+      finished = true;
+      clearTimeout(stage2Timer);
+      clearTimeout(stage3Timer);
       if (onShowToast) {
-        onShowToast(`Archive download error: ${err.message}`);
+        onShowToast(`Could not download complete archive: ${err.message || 'Server error'}`);
       }
     }
   };

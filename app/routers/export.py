@@ -513,19 +513,27 @@ async def export_archive(
                 print(f"[WARN] Failed to write section MDB for {folder_prefix}: {err}")
 
             # Section Media: PICTURES/ and SIGNATURES/
+            written_paths = set()
             for s in sec_students:
                 surname = re.sub(r'[^A-Za-z0-9]', '', s.last_name or '').upper()
                 firstname = re.sub(r'[^A-Za-z0-9]', '', s.first_name or '').upper()
                 mi = re.sub(r'[^A-Za-z0-9]', '', (s.middle_name or '')[:1]).upper()
+                s_num = re.sub(r'[^A-Za-z0-9]', '', s.student_number or '').upper()
                 name_part = f"{surname}_{firstname}_{mi}".strip('_')
 
                 if s.photo_r2_key and s.photo_r2_key in media_cache:
                     pic_path = f"{folder_prefix}/PICTURES/{name_part}__PICTURE.JPG"
+                    if pic_path in written_paths:
+                        pic_path = f"{folder_prefix}/PICTURES/{name_part}_{s_num}__PICTURE.JPG"
                     zf.writestr(pic_path, media_cache[s.photo_r2_key])
+                    written_paths.add(pic_path)
 
                 if s.signature_r2_key and s.signature_r2_key in media_cache:
                     sig_path = f"{folder_prefix}/SIGNATURES/{name_part}__SIGNATURE.JPG"
+                    if sig_path in written_paths:
+                        sig_path = f"{folder_prefix}/SIGNATURES/{name_part}_{s_num}__SIGNATURE.JPG"
                     zf.writestr(sig_path, media_cache[s.signature_r2_key])
+                    written_paths.add(sig_path)
 
         # 6. Master root CardFive MDB containing all records
         try:
@@ -535,13 +543,16 @@ async def export_archive(
         except Exception as err:
             print(f"[WARN] Failed to write master MDB into archive: {err}")
 
-    zip_buffer.seek(0)
+    zip_data = zip_buffer.getvalue()
     date_str = datetime.now().strftime("%Y-%m-%d")
     filename = f"ACES_Synapse_Complete_Archive_{date_str}.zip"
 
-    return StreamingResponse(
-        zip_buffer,
+    return Response(
+        content=zip_data,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Length": str(len(zip_data)),
+        },
     )
 

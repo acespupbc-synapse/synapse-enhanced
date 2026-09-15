@@ -676,25 +676,37 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
     const filter = { program: program.code, section: secParam, academicYear: ayStr };
     const label = secParam ? `${program.code} (${secParam})` : program.code;
 
+    let finished = false;
+
+    // Stage 1: Compiling
     if (onShowToast) {
-      onShowToast(`Generating ${format.toUpperCase()} export for ${label}...`);
+      onShowToast(`Compiling ${format.toUpperCase()} for ${label}...`, { loading: true });
     }
 
-    try {
-      let ok = false;
-      if (format === 'csv') ok = await exportApi.downloadCsv(filter);
-      else if (format === 'xlsx') ok = await exportApi.downloadXlsx(filter);
-      else if (format === 'pdf') ok = await exportApi.downloadPdf(filter);
-      else if (format === 'mdb') ok = await exportApi.downloadMdb(filter);
+    // Stage 2: Exporting (if operation takes > 700ms)
+    const stageTimer = setTimeout(() => {
+      if (!finished && onShowToast) {
+        onShowToast(`Exporting ${format.toUpperCase()} for ${label}...`, { loading: true });
+      }
+    }, 700);
 
-      if (ok && onShowToast) {
+    try {
+      if (format === 'csv') await exportApi.downloadCsv(filter);
+      else if (format === 'xlsx') await exportApi.downloadXlsx(filter);
+      else if (format === 'pdf') await exportApi.downloadPdf(filter);
+      else if (format === 'mdb') await exportApi.downloadMdb(filter);
+
+      finished = true;
+      clearTimeout(stageTimer);
+
+      if (onShowToast) {
         onShowToast(`${format.toUpperCase()} export downloaded for ${label}.`);
-      } else if (!ok && onShowToast) {
-        onShowToast(`No records found or export failed for ${label}.`);
       }
     } catch (err) {
+      finished = true;
+      clearTimeout(stageTimer);
       if (onShowToast) {
-        onShowToast(`Export error: ${err.message}`);
+        onShowToast(`Export error: ${err.message || 'Export failed'}`);
       }
     }
   };

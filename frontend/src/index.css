@@ -242,3 +242,21 @@ a {
     margin-top: var(--header-height);
   }
 }
+
+/* Toast Loading Spinner */
+@keyframes toast-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toast-spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(156, 163, 175, 0.3);
+  border-top-color: var(--color-blue, #2563EB);
+  border-radius: 50%;
+  animation: toast-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}

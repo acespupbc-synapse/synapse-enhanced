@@ -434,7 +434,11 @@ export const exportApi = {
     try {
       const blob = await request(`/admin/exports/csv${query ? `?${query}` : ''}`, {
         responseType: 'blob',
+        timeout: 60000,
       });
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned empty file');
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -452,7 +456,7 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadCsv] Failed:', err.message);
-      return false;
+      throw err;
     }
   },
 
@@ -461,7 +465,11 @@ export const exportApi = {
     try {
       const blob = await request(`/admin/exports/mdb${query ? `?${query}` : ''}`, {
         responseType: 'blob',
+        timeout: 120000,
       });
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned empty file');
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -479,7 +487,7 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadMdb] Failed:', err.message);
-      return false;
+      throw err;
     }
   },
 
@@ -488,7 +496,11 @@ export const exportApi = {
     try {
       const blob = await request(`/admin/exports/xlsx${query ? `?${query}` : ''}`, {
         responseType: 'blob',
+        timeout: 60000,
       });
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned empty file');
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       const rawProg = filters.program?.toUpperCase();
@@ -502,7 +514,7 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadXlsx] Failed:', err.message);
-      return false;
+      throw err;
     }
   },
 
@@ -511,7 +523,11 @@ export const exportApi = {
     try {
       const blob = await request(`/admin/exports/pdf${query ? `?${query}` : ''}`, {
         responseType: 'blob',
+        timeout: 60000,
       });
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned empty file');
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -524,7 +540,7 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadPdf] Failed:', err.message);
-      return false;
+      throw err;
     }
   },
 
@@ -532,7 +548,11 @@ export const exportApi = {
     try {
       const blob = await request('/admin/exports/archive', {
         responseType: 'blob',
+        timeout: 180000,
       });
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned empty file');
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -544,7 +564,7 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadArchive] Failed:', err.message);
-      return false;
+      throw err;
     }
   }
 };

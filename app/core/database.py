@@ -8,13 +8,19 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+connect_args = {}
+if "asyncpg" in settings.async_database_url:
+    connect_args["statement_cache_size"] = 0
+else:
+    connect_args["prepare_threshold"] = None
+
 engine = create_async_engine(
     settings.async_database_url,
     echo=False,
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
-    connect_args={"prepare_threshold": None},
+    connect_args=connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(

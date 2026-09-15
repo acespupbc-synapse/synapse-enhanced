@@ -24,7 +24,8 @@ export default function App() {
   );
   const [isDark, setIsDark] = useState(true);
   const [isOpenMobile, setIsOpenMobile] = useState(false);
-  const [toastMessage, setToastMessage] = useState(null);
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = React.useRef(null);
 
   const [stats, setStats] = useState({
     isRegistrationOpen: true,
@@ -195,10 +196,29 @@ export default function App() {
     }
   }, [isDark, isAuthenticated]);
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+  const showToast = useCallback((msg, options = {}) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+
+    if (!msg) {
+      setToast(null);
+      return;
+    }
+
+    const isLoading = Boolean(options?.loading);
+    setToast({
+      message: msg,
+      loading: isLoading,
+    });
+
+    if (!isLoading) {
+      toastTimerRef.current = setTimeout(() => {
+        setToast(null);
+      }, options?.duration || 3500);
+    }
+  }, []);
 
   const handleToggleRegistration = async (explicitState) => {
     const nextState = explicitState !== undefined ? explicitState : !stats.isRegistrationOpen;
@@ -373,27 +393,30 @@ export default function App() {
       </Routes>
 
       {/* Toast Notification Banner */}
-      {toastMessage && (
+      {toast && (
         <div
           style={{
             position: 'fixed',
             bottom: 24,
             right: 24,
-            background: 'var(--text-primary)',
-            color: 'var(--bg-page)',
+            background: 'var(--bg-card-nested, #1e293b)',
+            color: 'var(--text-primary, #ffffff)',
+            border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.12))',
+            backdropFilter: 'blur(12px)',
             padding: '12px 20px',
-            borderRadius: 'var(--radius-pill)',
-            fontSize: 'var(--text-xs)',
-            fontWeight: 600,
-            boxShadow: 'var(--shadow-card-hover)',
+            borderRadius: 12,
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.35)',
+            fontSize: 14,
+            fontWeight: 500,
             zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 12,
             animation: 'fadeIn 0.2s ease-in-out'
           }}
         >
-          <span>{toastMessage}</span>
+          <span>{toast.message}</span>
+          {toast.loading && <span className="toast-spinner" aria-label="Loading..." />}
         </div>
       )}
     </>

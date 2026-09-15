@@ -35,12 +35,19 @@ class Settings(BaseSettings):
 
     @property
     def async_database_url(self) -> str:
-        """Convert sync postgresql:// URL to psycopg3-compatible postgresql+psycopg://"""
+        """Convert sync postgresql:// URL to async dialect (psycopg or asyncpg fallback)."""
         url = self.database_url
+        driver = "psycopg"
+        try:
+            import psycopg
+            from psycopg import pq  # noqa
+        except Exception:
+            driver = "asyncpg"
+
         if url.startswith("postgresql://"):
-            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+            return url.replace("postgresql://", f"postgresql+{driver}://", 1)
         if url.startswith("postgres://"):
-            return url.replace("postgres://", "postgresql+psycopg://", 1)
+            return url.replace("postgres://", f"postgresql+{driver}://", 1)
         return url
 
 
