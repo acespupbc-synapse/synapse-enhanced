@@ -115,3 +115,9 @@
 7. **[FIXED] Export Filenames**
    - **Fix:** Exported CSV, MDB, and XLSX files are formatted as `PUP Biñan AY {ay_name}` (e.g. `PUP Biñan AY 2026-2027.csv`), using UTF-8 RFC 5987 header encoding with standard ASCII fallback.
    - **Files:** `app/routers/export.py`.
+
+8. **[FIXED] Dashboard Cloudflare and Supabase Storage Capacity Cards Have Delay**
+   - **Root Cause:** `_get_r2_storage_info()` calls boto3's `paginator.paginate()` — a synchronous blocking I/O operation — directly from the async event loop. This stalled the entire `/api/admin/dashboard` response (and `/api/admin/capacity`) for 1–3 seconds whenever the 60-second R2 cache expired, causing a visible delay on the storage capacity cards.
+   - **Fix:** Wrapped both calls to `_get_r2_storage_info()` in `await asyncio.to_thread(...)` in both `get_capacity` and `get_full_dashboard`, offloading the blocking boto3 paginator to the thread pool so the event loop remains responsive. Extended R2 cache TTL from 60s to 300s (R2 bucket size changes slowly) to reduce Cloudflare API churn.
+   - **Files:** `app/routers/admin.py`.
+

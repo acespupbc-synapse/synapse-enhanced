@@ -48,16 +48,19 @@ async def _get_db_storage_mb(db: AsyncSession) -> float:
 
 
 _r2_size_cache = {"mb": 1.08, "files": 6, "ts": 0}
+# Cache TTL: 300s — R2 bucket size changes slowly; avoids hammering Cloudflare API every poll cycle
+_R2_CACHE_TTL = 300
 
 
 def _get_r2_storage_info(photo_count: int = 0, sig_count: int = 0) -> tuple[float, int]:
     """
     Get accurate Cloudflare R2 storage usage in MB and file count.
     Uses paginated list_objects_v2 (Phase 2.3) to handle buckets > 1000 objects.
-    Cached for 60 seconds. Falls back gracefully if R2 call fails.
+    Cached for 300 seconds. Falls back gracefully if R2 call fails.
+    IMPORTANT: This is a blocking function — always call via asyncio.to_thread().
     """
     now = time.time()
-    if now - _r2_size_cache["ts"] > 60:
+    if now - _r2_size_cache["ts"] > _R2_CACHE_TTL:
         try:
             from app.core.r2_storage import _get_client
             from app.core.config import get_settings
@@ -180,7 +183,8 @@ async def get_capacity(
     storage_mb = await _get_db_storage_mb(db)
     pct = round((storage_mb / storage_max_mb) * 100, 2)
 
-    r2_used_mb, total_files = _get_r2_storage_info(photo_count, sig_count)
+    # Off-load blocking boto3 paginator to thread pool so the event loop stays responsive
+    r2_used_mb, total_files = await asyncio.to_thread(_get_r2_storage_info, photo_count, sig_count)
     r2_max_mb = 10000.0  # 10 GB free tier
     r2_pct = round((r2_used_mb / r2_max_mb) * 100, 2)
 
@@ -256,8 +260,8 @@ async def get_full_dashboard(
 
     storage_mb = await _get_db_storage_mb(db)
 
-    # Cloudflare R2 Media Capacity
-    r2_used_mb, total_files = _get_r2_storage_info(photo_count, sig_count)
+    # Cloudflare R2 Media Capacity — off-load blocking boto3 paginator to thread pool
+    r2_used_mb, total_files = await asyncio.to_thread(_get_r2_storage_info, photo_count, sig_count)
     r2_max_mb = 10000.0  # 10 GB free tier
     r2_pct = round((r2_used_mb / r2_max_mb) * 100, 2)
 
