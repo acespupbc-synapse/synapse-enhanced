@@ -38,11 +38,15 @@ export default function LoginView({ onLogin }) {
       <div className="login-card login-auth-card">
         <div className="login-modal-header">
           <div className="login-modal-icon">
-            <ShieldCheck size={28} weight="fill" color="#E00000" />
+            <img
+                src="/img/logo/loadingmodal_logo.png"
+                alt="ACES Synapse Logo"
+                className="home-synapse-logo"
+              />
           </div>
-          <h2 className="login-modal-title">Admin Authentication</h2>
+          <h2 className="login-modal-title">Admin Login</h2>
           <p className="login-modal-subtitle">
-            Enter your administrative credentials to access the management dashboard.
+            Enter your admin credentials to access the dashboard.
           </p>
         </div>
 

@@ -236,14 +236,14 @@
   height: 100vh;
   z-index: 10;
   pointer-events: none;
-  background-color: #060101;
+  background-color: #110f0f;
   background-image:
     /* Ambient warm glow, upper-left */
     radial-gradient(ellipse 75% 55% at 15% 0%, rgba(130, 0, 0, 0.22) 0%, transparent 100%),
     /* Ambient warm glow, lower-right */
     radial-gradient(ellipse 70% 50% at 85% 100%, rgba(120, 0, 0, 0.15) 0%, transparent 100%),
     /* Subtle center warmth behind card */
-    radial-gradient(circle at 50% 45%, rgba(80, 8, 8, 0.18) 0%, transparent 55%),
+    radial-gradient(circle at 50% 45%, rgba(80, 8, 8, 0.452) 0%, transparent 55%),
     /* Faint grid texture */
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
@@ -303,15 +303,13 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  margin-bottom: 22px;
+  margin-bottom: 1px;
 }
 
 .login-modal-icon {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(123, 0, 0, 0.2);
-  border: 1px solid rgba(123, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -359,8 +357,10 @@
 
 .login-modal-field label {
   font-size: 0.75rem;
+  display: flex;
   font-weight: 600;
   color: #D1D5DB;
+  align-items: left;
 }
 
 .login-input-wrap {
@@ -427,9 +427,6 @@
   transition: transform 0.25s ease;
 }
 
-.home-synapse-logo:hover {
-  transform: scale(1.05);
-}
 
 .home-synapse-text-img {
   max-width: 280px;
