@@ -1,6 +1,6 @@
 # ACES Synapse Enhanced
 
-Modernization and redesign of the ACES Synapse student registration and administration system for PUP Bataan ACES. Replaces the legacy Python/SQLite system with a production-grade stack featuring async FastAPI, PostgreSQL, Cloudflare R2 media storage, and a React SPA.
+Modernization and redesign of the ACES Synapse student registration and administration system for PUP Biñan. Replaces the legacy Python/SQLite system with a production-grade stack featuring async FastAPI, PostgreSQL, Cloudflare R2 media storage, and a React SPA.
 
 ## Stack
 
@@ -48,7 +48,7 @@ frontend/          # React SPA (Vite)
 docs/              # Project documentation
 scripts/           # Seed and simulation utilities
 tools/mdb_writer/  # Jackcess-based MDB writer (Java)
-reference/         # Local reference artifacts (MDB — gitignored)
+reference/         # Local reference artifacts 
 ```
 
 ## Getting Started (Development)
