@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.r2_storage import get_presigned_url
+from app.core.r2_storage import get_presigned_url, get_bucket_metrics
 from app.core.security import get_current_admin
 from app.models.admin_user import AdminUser
 from app.models.student import Student
@@ -47,44 +47,16 @@ async def _get_db_storage_mb(db: AsyncSession) -> float:
     return _db_size_cache["mb"]
 
 
-_r2_size_cache = {"mb": 1.08, "files": 6, "ts": 0}
-# Cache TTL: 300s — R2 bucket size changes slowly; avoids hammering Cloudflare API every poll cycle
-_R2_CACHE_TTL = 300
-
 
 def _get_r2_storage_info(photo_count: int = 0, sig_count: int = 0) -> tuple[float, int]:
     """
-    Get accurate Cloudflare R2 storage usage in MB and file count.
-    Uses paginated list_objects_v2 (Phase 2.3) to handle buckets > 1000 objects.
-    Cached for 300 seconds. Falls back gracefully if R2 call fails.
+    Thin wrapper around get_bucket_metrics() from r2_storage.py.
+    Uses the shared module-level cache so /dashboard and /diagnostics always agree.
     IMPORTANT: This is a blocking function — always call via asyncio.to_thread().
     """
-    now = time.time()
-    if now - _r2_size_cache["ts"] > _R2_CACHE_TTL:
-        try:
-            from app.core.r2_storage import _get_client
-            from app.core.config import get_settings
-            settings_cfg = get_settings()
-            client = _get_client()
-            # Phase 2.3: Paginate to handle buckets with > 1000 objects
-            paginator = client.get_paginator('list_objects_v2')
-            total_bytes = 0
-            total_files = 0
-            for page in paginator.paginate(Bucket=settings_cfg.cf_r2_bucket_name):
-                for obj in page.get('Contents', []):
-                    total_bytes += obj.get('Size', 0)
-                    total_files += 1
-            _r2_size_cache["mb"] = round(total_bytes / (1024 * 1024), 2)
-            _r2_size_cache["files"] = total_files
-            _r2_size_cache["ts"] = now
-        except Exception as e:
-            print(f"[WARN] Failed to fetch R2 bucket metrics: {e}")
-            fallback_files = (photo_count or 0) + (sig_count or 0)
-            _r2_size_cache["mb"] = round(fallback_files * 0.2, 2)
-            _r2_size_cache["files"] = fallback_files
-            _r2_size_cache["ts"] = now
+    metrics = get_bucket_metrics()
+    return metrics["size_mb"], metrics["total_objects"]
 
-    return _r2_size_cache["mb"], _r2_size_cache["files"]
 
 
 try:

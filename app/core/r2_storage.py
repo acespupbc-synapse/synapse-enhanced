@@ -217,10 +217,27 @@ def validate_image_dimensions(
         return False, f"Image validation failed: {str(exc)}"
 
 
+# Shared module-level cache for bucket metrics — 300s TTL.
+# Both /dashboard and /diagnostics read from this so values are always in sync.
+_bucket_metrics_cache: dict = {"data": None, "ts": 0.0}
+_BUCKET_METRICS_CACHE_TTL = 300  # seconds
+
+
+def bust_bucket_metrics_cache() -> None:
+    """Invalidate the bucket metrics cache (e.g. after an upload or delete)."""
+    _bucket_metrics_cache["ts"] = 0.0
+
+
 def get_bucket_metrics() -> dict:
     """
     Query Cloudflare R2 bucket for total object count, total bytes, and size in MB.
+    Results are cached for 300 seconds — R2 bucket size changes slowly.
+    IMPORTANT: This is a blocking function — always call via asyncio.to_thread().
     """
+    now = time.time()
+    if _bucket_metrics_cache["data"] and (now - _bucket_metrics_cache["ts"] < _BUCKET_METRICS_CACHE_TTL):
+        return _bucket_metrics_cache["data"]
+
     try:
         client = _get_client()
         paginator = client.get_paginator("list_objects_v2")
@@ -231,17 +248,20 @@ def get_bucket_metrics() -> dict:
                 total_objects += 1
                 total_bytes += obj.get("Size", 0)
         size_mb = round(total_bytes / (1024 * 1024), 2)
-        return {
+        result = {
             "total_objects": total_objects,
             "total_bytes": total_bytes,
             "size_mb": size_mb,
         }
     except Exception as exc:
         print(f"[WARN] Failed to get R2 bucket metrics: {exc}")
-        return {
+        result = {
             "total_objects": 0,
             "total_bytes": 0,
             "size_mb": 0.0,
             "error": str(exc),
         }
 
+    _bucket_metrics_cache["data"] = result
+    _bucket_metrics_cache["ts"] = now
+    return result
