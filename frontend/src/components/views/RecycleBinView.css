@@ -122,7 +122,7 @@
   color: #E4E4E7;
 }
 
-/* ── Empty state ─────────────────────────────────────────────────────────── */
+/* ── Empty state ──────────────────────────────────────────────────── */
 
 .recycle-empty-state {
   display: flex;
@@ -131,47 +131,41 @@
   justify-content: center;
   flex: 1;
   padding: 60px 24px;
-  gap: 12px;
+  gap: 14px;
   text-align: center;
 }
 
 .recycle-empty-icon {
   width: 72px;
   height: 72px;
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: rgba(123, 0, 0, 0.12);
+  border: 1px solid rgba(200, 60, 60, 0.2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 6px;
+  box-shadow: 0 0 24px rgba(180, 0, 0, 0.12), inset 0 0 12px rgba(180, 0, 0, 0.06);
+  animation: recycleIconPulse 4s ease-in-out infinite;
+}
+
+@keyframes recycleIconPulse {
+  0%, 100% { box-shadow: 0 0 24px rgba(180, 0, 0, 0.12), inset 0 0 12px rgba(180, 0, 0, 0.06); }
+  50% { box-shadow: 0 0 36px rgba(200, 40, 40, 0.22), inset 0 0 18px rgba(200, 40, 40, 0.1); }
 }
 
 .recycle-empty-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #F4F4F5;
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.02em;
 }
 
 .recycle-empty-sub {
-  font-size: 0.82rem;
-  color: rgba(255, 255, 255, 0.35);
-  max-width: 380px;
-  line-height: 1.6;
-}
-
-.recycle-clean-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  border-radius: 100px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #6EE7B7;
-  margin-top: 4px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.28);
+  max-width: 340px;
+  line-height: 1.65;
 }
 
 /* ── Table ───────────────────────────────────────────────────────────────── */

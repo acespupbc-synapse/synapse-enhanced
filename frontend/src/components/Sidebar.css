@@ -246,13 +246,15 @@
 /* Mobile Header */
 .mobile-header {
   display: none;
+  width: 100%;
+  height: 52px;
+  flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
+  justify-content: flex-start;
+  padding: 0 16px;
   background: #0A0000;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  position: sticky;
-  top: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
   z-index: 40;
 }
 
@@ -292,25 +294,86 @@
   opacity: 1;
 }
 
+/* ── Mobile Bottom Navigation Bar ──────────────────────────────────────────── */
+.mobile-bottom-nav {
+  display: none;
+}
+
 @media (max-width: 1024px) {
+  /* Hide desktop sidebar on mobile */
   .sidebar-container {
-    transform: translateX(-100%);
+    display: none;
   }
 
-  .sidebar-container.open {
-    transform: translateX(0);
-  }
-
+  /* Show mobile top header */
   .mobile-header {
     display: flex;
   }
 
-  .sidebar-backdrop {
-    display: block;
-    pointer-events: none;
+  /* Show mobile bottom nav */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: #0A0000;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    z-index: 50;
+    padding: 0 4px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
   }
 
-  .sidebar-backdrop.active {
-    pointer-events: auto;
+  .mobile-bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: #6B6B6B;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 6px 4px;
+    border-radius: 8px;
+    transition: color 0.15s ease, background 0.15s ease;
+    position: relative;
+  }
+
+  .mobile-bottom-nav-item span {
+    line-height: 1;
+  }
+
+  .mobile-bottom-nav-item:hover:not(.active) {
+    color: #AAAAAA;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .mobile-bottom-nav-item.active {
+    color: #FFFFFF;
+  }
+
+  .mobile-bottom-nav-item.active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 2px;
+    background: #CC0000;
+    border-radius: 0 0 3px 3px;
+  }
+
+  /* Action tab (Student Registration) — stands out as a pill */
+  .mobile-bottom-nav-item.action {
+    color: #CC2222;
+  }
+
+  .mobile-bottom-nav-item.action:hover {
+    color: #FF4444;
+    background: rgba(204, 34, 34, 0.08);
   }
 }

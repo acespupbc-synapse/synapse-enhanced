@@ -156,7 +156,6 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
-
 /* ==========================================================================
    App Layout
    ========================================================================== */
@@ -169,6 +168,45 @@ a {
   display: flex;
   background-color: transparent;
   z-index: 1;
+}
+
+/* Admin Panel Ambient Background — Deep crimson orb glow layers */
+.app-container::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 15% 10%, rgba(123, 0, 0, 0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 85%, rgba(100, 0, 0, 0.14) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 40% at 50% 50%, rgba(80, 0, 0, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: adminAmbientDrift 28s ease-in-out infinite alternate;
+}
+
+.app-container::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 40% at 80% 15%, rgba(160, 10, 10, 0.1) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 50% at 20% 80%, rgba(90, 0, 0, 0.12) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+  animation: adminAmbientDrift2 36s ease-in-out infinite alternate;
+}
+
+@keyframes adminAmbientDrift {
+  0%   { opacity: 0.7; transform: scale(1) translate(0px, 0px); }
+  33%  { opacity: 0.9; transform: scale(1.04) translate(15px, -20px); }
+  66%  { opacity: 0.75; transform: scale(0.97) translate(-10px, 15px); }
+  100% { opacity: 0.85; transform: scale(1.02) translate(8px, 10px); }
+}
+
+@keyframes adminAmbientDrift2 {
+  0%   { opacity: 0.6; transform: scale(1) translate(0px, 0px); }
+  50%  { opacity: 0.85; transform: scale(1.06) translate(-18px, 12px); }
+  100% { opacity: 0.7; transform: scale(0.95) translate(12px, -18px); }
 }
 
 /* Top Navigation Progress Bar (QoL 3) */
@@ -236,10 +274,22 @@ a {
 }
 
 @media (max-width: 1024px) {
+  .app-container {
+    flex-direction: column !important;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
   .main-wrapper {
-    padding: 24px 20px;
-    margin-left: 0; /* Sidebar is off-screen on mobile */
-    margin-top: var(--header-height);
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 16px 16px 84px !important;
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
   }
 }
 

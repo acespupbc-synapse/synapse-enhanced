@@ -128,6 +128,36 @@ const STEPS = [
   { id: 5, label: 'Review' }
 ];
 
+// ── B3: Name field character allowlist ────────────────────────────────────────
+// Allow letters (including Filipino Ñ/ñ and accented vowels), spaces, hyphens,
+// apostrophes, and periods. Block $, %, #, and all other symbols.
+const NAME_DISALLOWED = /[^A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF\u00D1\u00F1\s\-'.]/g;
+function sanitizeNameField(value) {
+  return value.replace(NAME_DISALLOWED, '').toUpperCase();
+}
+
+// ── B4: sessionStorage draft key and helpers ──────────────────────────────────
+const DRAFT_KEY = 'sreg_form_draft';
+function saveDraft(step, dobM, dobD, dobY, data) {
+  try {
+    // Exclude media blobs — too large for sessionStorage (5 MB limit)
+    const { photoUrl, signatureUrl, ...rest } = data;
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+      step, dobMonth: dobM, dobDay: dobD, dobYear: dobY, formData: rest
+    }));
+  } catch (_) {}
+}
+function loadDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) { return null; }
+}
+function clearDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch (_) {}
+}
+
 const FUNNY_CONTACT_NAMES = [
   'e.g. Mary G. Piattos',
   'e.g. Andy Lim',
@@ -147,7 +177,6 @@ const FUNNY_CONTACT_NAMES = [
 export default function StudentRegistrationView({ onBack }) {
   // Theme state: light by default as requested
   const [theme, setTheme] = useState('light');
-  const [currentStep, setCurrentStep] = useState(1);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,10 +184,14 @@ export default function StudentRegistrationView({ onBack }) {
   const [stepError, setStepError] = useState('');
   const [isOrgOpen, setIsOrgOpen] = useState(false);
 
-  // Modern Date of Birth parts
-  const [dobMonth, setDobMonth] = useState('');
-  const [dobDay, setDobDay] = useState('');
-  const [dobYear, setDobYear] = useState('');
+  // ── B4: Restore step + DOB parts from sessionStorage draft on mount ──────────
+  const _draft = loadDraft();
+  const [currentStep, setCurrentStep] = useState(_draft?.step || 1);
+
+  // Modern Date of Birth parts — restored from draft if available
+  const [dobMonth, setDobMonth] = useState(_draft?.dobMonth || '');
+  const [dobDay, setDobDay] = useState(_draft?.dobDay || '');
+  const [dobYear, setDobYear] = useState(_draft?.dobYear || '');
 
   // Random funny placeholder for emergency contact person (fixed per student entry)
   const [funnyNameIndex, setFunnyNameIndex] = useState(() =>
@@ -222,36 +255,40 @@ export default function StudentRegistrationView({ onBack }) {
   const [hasSignature, setHasSignature] = useState(false);
   const [modalStrokeCount, setModalStrokeCount] = useState(0);
 
-  const [formData, setFormData] = useState({
-    // Step 1: Academic
-    org: '',
-    course: '',
-    yearLevel: '',
-    section: '',
+  const [formData, setFormData] = useState(() => {
+    // B4: Restore persisted text fields from sessionStorage (media blobs are re-captured)
+    const draft = loadDraft();
+    return {
+      // Step 1: Academic
+      org: draft?.formData?.org || '',
+      course: draft?.formData?.course || '',
+      yearLevel: draft?.formData?.yearLevel || '',
+      section: draft?.formData?.section || '',
 
-    // Step 2: Personal
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    studentNumber: '',
-    email: '',
-    gender: '',
-    birthDate: '', // YYYY-MM-DD
-    residentialAddress: '',
+      // Step 2: Personal
+      firstName: draft?.formData?.firstName || '',
+      middleName: draft?.formData?.middleName || '',
+      lastName: draft?.formData?.lastName || '',
+      studentNumber: draft?.formData?.studentNumber || '',
+      email: draft?.formData?.email || '',
+      gender: draft?.formData?.gender || '',
+      birthDate: draft?.formData?.birthDate || '', // YYYY-MM-DD
+      residentialAddress: draft?.formData?.residentialAddress || '',
 
-    // Step 3: Emergency
-    contactPersonName: '',
-    contactPersonNumber: '',
-    contactPersonAddress: '',
-    sameAddress: false,
+      // Step 3: Emergency
+      contactPersonName: draft?.formData?.contactPersonName || '',
+      contactPersonNumber: draft?.formData?.contactPersonNumber || '',
+      contactPersonAddress: draft?.formData?.contactPersonAddress || '',
+      sameAddress: draft?.formData?.sameAddress || false,
 
-    // Step 4: Media
-    photoUrl: null,
-    photoFileName: '',
-    signatureUrl: null,
+      // Step 4: Media — never persisted (data URLs too large for sessionStorage)
+      photoUrl: null,
+      photoFileName: '',
+      signatureUrl: null,
 
-    // Step 5: Certification
-    certified: false
+      // Step 5: Certification
+      certified: false
+    };
   });
 
   // Dynamic Programs & Sections from Database (synced live with Admin Programs tab)
@@ -275,6 +312,19 @@ export default function StudentRegistrationView({ onBack }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Prevent accidental tab close or page reload while student is encoding
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!isSubmitted && (formData?.studentNumber || formData?.firstName || currentStep > 1)) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isSubmitted, formData?.studentNumber, formData?.firstName, currentStep]);
 
   // Merge database programs and sections into organizations
   const organizations = useMemo(() => {
@@ -315,28 +365,25 @@ export default function StudentRegistrationView({ onBack }) {
     if (!selectedCourse || !formData.yearLevel) return [];
     const yearInt = parseInt(formData.yearLevel[0], 10) || 1;
 
-    // 1. Check sections_detail from database matching exact year_level
-    if (selectedCourse.sections_detail && selectedCourse.sections_detail.length > 0) {
-      const matched = selectedCourse.sections_detail
-        .filter((s) => Number(s.year_level) === yearInt)
-        .map((s) => s.name);
-      if (matched.length > 0) {
+    // 1. If database programs are loaded, database is authoritative — do NOT invent sections
+    if (dbPrograms !== null) {
+      if (selectedCourse.sections_detail && selectedCourse.sections_detail.length > 0) {
+        const matched = selectedCourse.sections_detail
+          .filter((s) => Number(s.year_level) === yearInt)
+          .map((s) => s.name);
         return matched.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       }
-    }
-
-    // 2. Filter from sections array matching year prefix (e.g. "1-" or "2-")
-    if (selectedCourse.sections && selectedCourse.sections.length > 0) {
-      const prefixMatched = selectedCourse.sections.filter((s) => s.startsWith(`${yearInt}-`));
-      if (prefixMatched.length > 0) {
+      if (selectedCourse.sections && selectedCourse.sections.length > 0) {
+        const prefixMatched = selectedCourse.sections.filter((s) => s.startsWith(`${yearInt}-`));
         return prefixMatched.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       }
-      return selectedCourse.sections;
+      // If course has no sections defined for this year level in DB, return empty!
+      return [];
     }
 
-    // 3. Fallback to baseline sections for that year
-    return SECTIONS_BY_YEAR[formData.yearLevel] || [`${yearInt}-1`];
-  }, [selectedCourse, formData.yearLevel]);
+    // 2. Offline fallback only
+    return SECTIONS_BY_YEAR[formData.yearLevel] || [];
+  }, [selectedCourse, formData.yearLevel, dbPrograms]);
 
   // If the currently chosen section is not in availableSections, clear it
   useEffect(() => {
@@ -353,11 +400,22 @@ export default function StudentRegistrationView({ onBack }) {
     return new Date(y, m, 0).getDate();
   }, [dobMonth, dobYear]);
 
-  // Handle text input changes — forces uppercase on text fields
-  const handleChange = (field, value) => {
-    const textFields = ['firstName', 'middleName', 'lastName', 'residentialAddress',
-                        'contactPersonName', 'contactPersonAddress'];
-    const finalValue = textFields.includes(field) ? value.toUpperCase() : value;
+  // Handle text input changes — forces uppercase on text fields while preserving caret position
+  // B3: Name fields are also passed through sanitizeNameField to block symbols
+  const handleChange = (field, eOrValue) => {
+    let value = typeof eOrValue === 'object' && eOrValue?.target ? eOrValue.target.value : eOrValue;
+    const target = typeof eOrValue === 'object' && eOrValue?.target ? eOrValue.target : null;
+    const selectionStart = target ? target.selectionStart : null;
+    const selectionEnd = target ? target.selectionEnd : null;
+
+    const nameFields = ['firstName', 'middleName', 'lastName', 'contactPersonName'];
+    const upperFields = ['residentialAddress', 'contactPersonAddress'];
+    let finalValue = value;
+    if (nameFields.includes(field)) {
+      finalValue = sanitizeNameField(value);
+    } else if (upperFields.includes(field)) {
+      finalValue = value.toUpperCase();
+    }
     setFormData((prev) => {
       const updated = { ...prev, [field]: finalValue };
       if (field === 'course') {
@@ -369,39 +427,91 @@ export default function StudentRegistrationView({ onBack }) {
       return updated;
     });
     if (stepError) setStepError('');
+
+    if (target && selectionStart !== null) {
+      requestAnimationFrame(() => {
+        if (document.activeElement === target) {
+          try {
+            target.setSelectionRange(selectionStart, selectionEnd);
+          } catch (_) {}
+        }
+      });
+    }
   };
 
-  // QoL 1: Auto-insert dashes for student number mask: 0000-00000-BN-0
-  const handleStudentNumberInput = (raw) => {
-    // Strip all non-alphanumeric except existing dashes, then rebuild mask
-    const digits = raw.replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
-    let masked = '';
-    let i = 0;
-    // Part 1: 4 digits
-    const part1 = digits.slice(0, 4);
-    masked += part1;
-    i += part1.length;
-    if (i >= 4 && digits.length > 4) masked += '-';
-    // Part 2: 5 digits
-    const part2 = digits.slice(4, 9);
-    masked += part2;
-    if (digits.length > 9) masked += '-';
-    // Part 3: 2 chars (BN)
-    const part3 = digits.slice(9, 11);
-    masked += part3;
-    if (digits.length > 11) masked += '-';
-    // Part 4: 1 char
-    const part4 = digits.slice(11, 12);
-    masked += part4;
-    setFormData((prev) => ({ ...prev, studentNumber: masked }));
+  // QoL 1: Auto-insert dashes for student number mask: YYYY-NNNNN-BN-0
+  const handleStudentNumberInput = (eOrRaw) => {
+    let raw = typeof eOrRaw === 'object' && eOrRaw?.target ? eOrRaw.target.value : eOrRaw;
+    const target = typeof eOrRaw === 'object' && eOrRaw?.target ? eOrRaw.target : null;
+    const selectionStart = target ? target.selectionStart : null;
+    const selectionEnd = target ? target.selectionEnd : null;
+
+    const prevVal = formData.studentNumber || '';
+    let clean = raw.replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
+
+    // If user hit backspace on a dash, also remove the preceding character
+    if (raw.length < prevVal.length) {
+      if (prevVal.endsWith('-') && raw === prevVal.slice(0, -1)) {
+        clean = clean.slice(0, -1);
+      }
+    }
+
+    let formatted = '';
+    if (clean.length > 0) {
+      formatted += clean.slice(0, 4);
+    }
+    if (clean.length >= 4) {
+      formatted += '-' + clean.slice(4, 9);
+    }
+    if (clean.length >= 9) {
+      formatted += '-' + clean.slice(9, 11);
+    }
+    if (clean.length >= 11) {
+      formatted += '-' + clean.slice(11, 12);
+    }
+
+    setFormData((prev) => ({ ...prev, studentNumber: formatted }));
     if (stepError) setStepError('');
+
+    if (target && selectionStart !== null && raw.length === formatted.length) {
+      requestAnimationFrame(() => {
+        if (document.activeElement === target) {
+          try {
+            target.setSelectionRange(selectionStart, selectionEnd);
+          } catch (_) {}
+        }
+      });
+    }
   };
 
-  // QoL 4: Allow only digits for contact phone number
-  const handleContactNumberInput = (raw) => {
-    const digitsOnly = raw.replace(/\D/g, '');
-    setFormData((prev) => ({ ...prev, contactPersonNumber: digitsOnly }));
+  // QoL 3: Format phone number with spaces: 0991 234 5678 (max 11 digits)
+  const formatPhoneNumber = (raw) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 11);
+    if (!digits) return '';
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+  };
+
+  const handleContactNumberInput = (eOrRaw) => {
+    let raw = typeof eOrRaw === 'object' && eOrRaw?.target ? eOrRaw.target.value : eOrRaw;
+    const target = typeof eOrRaw === 'object' && eOrRaw?.target ? eOrRaw.target : null;
+    const selectionStart = target ? target.selectionStart : null;
+    const selectionEnd = target ? target.selectionEnd : null;
+
+    const formatted = formatPhoneNumber(raw);
+    setFormData((prev) => ({ ...prev, contactPersonNumber: formatted }));
     if (stepError) setStepError('');
+
+    if (target && selectionStart !== null && raw.length === formatted.length) {
+      requestAnimationFrame(() => {
+        if (document.activeElement === target) {
+          try {
+            target.setSelectionRange(selectionStart, selectionEnd);
+          } catch (_) {}
+        }
+      });
+    }
   };
 
   // Sync date of birth from components
@@ -494,42 +604,39 @@ export default function StudentRegistrationView({ onBack }) {
     }
   };
 
-  // ── Dynamic Org-Themed Navbar Style ──────────────────────────────────────
+  // ── Dynamic Org-Themed Navbar Style (Smooth Linear Gradient Flow) ────────
   const navDynamicStyle = useMemo(() => {
-    if (theme === 'dark') {
-      // Dark mode: sleek blend of black with a subtle tint and border of the org color
-      return {
-        background: `linear-gradient(135deg, color-mix(in srgb, ${themeOrg.color} 26%, #08080B) 0%, #0d0d12 60%, color-mix(in srgb, ${themeOrg.color} 14%, #040406) 100%)`,
-        borderBottom: `1px solid color-mix(in srgb, ${themeOrg.color} 45%, rgba(255,255,255,0.08))`,
-        boxShadow: '0 4px 25px rgba(0, 0, 0, 0.4)'
-      };
-    } else {
-      // Light mode: full vibrant organization branding
-      return {
-        background: `linear-gradient(135deg, ${themeOrg.color} 0%, color-mix(in srgb, ${themeOrg.color} 80%, #000000) 100%)`,
-        borderBottom: '1px solid rgba(0, 0, 0, 0.15)',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
-      };
-    }
+    const bgImage = theme === 'dark'
+      ? `linear-gradient(90deg, color-mix(in srgb, ${themeOrg.color} 45%, #0a0102) 0%, #1e0508 20%, color-mix(in srgb, ${themeOrg.color} 85%, #100204) 40%, #120305 60%, color-mix(in srgb, ${themeOrg.color} 60%, #080102) 80%, color-mix(in srgb, ${themeOrg.color} 45%, #0a0102) 100%)`
+      : `linear-gradient(90deg, ${themeOrg.color} 0%, color-mix(in srgb, ${themeOrg.color} 65%, #2a0000) 20%, color-mix(in srgb, ${themeOrg.color} 88%, #c52222) 40%, color-mix(in srgb, ${themeOrg.color} 70%, #300000) 60%, ${themeOrg.color} 80%, color-mix(in srgb, ${themeOrg.color} 65%, #2a0000) 100%)`;
+
+    return {
+      backgroundImage: bgImage,
+      backgroundSize: '200% 100%',
+      borderBottom: theme === 'dark'
+        ? `1px solid color-mix(in srgb, ${themeOrg.color} 45%, rgba(255,255,255,0.12))`
+        : '1px solid rgba(0, 0, 0, 0.18)',
+      boxShadow: theme === 'dark'
+        ? `0 4px 25px rgba(0, 0, 0, 0.45), 0 0 40px color-mix(in srgb, ${themeOrg.color} 20%, transparent)`
+        : '0 4px 20px rgba(0, 0, 0, 0.22), 0 0 30px rgba(120, 0, 0, 0.12)'
+    };
   }, [theme, themeOrg.color]);
 
   // ── Dynamic Main Page Background Style & Org Theming Variables ──────────
   const pageBgStyle = useMemo(() => {
     const focusRing = `color-mix(in srgb, ${themeOrg.color} 24%, transparent)`;
     if (theme === 'dark') {
-      // Dark Mode: Deep dark canvas with an ambient radial tint of the active org color
       return {
-        background: `radial-gradient(ellipse at 50% 0%, color-mix(in srgb, ${themeOrg.color} 24%, #040406) 0%, #08080C 55%, #020204 100%)`,
-        transition: 'background 0.4s ease',
+        backgroundImage: `radial-gradient(ellipse at 50% 0%, color-mix(in srgb, ${themeOrg.color} 32%, #050102) 0%, #0a0608 45%, #040102 100%)`,
+        backgroundSize: '150% 150%',
         '--sreg-org-color': themeOrg.color,
         '--sreg-input-focus-border': themeOrg.color,
         '--sreg-input-focus-ring': focusRing
       };
     } else {
-      // Light Mode: Clean legacy neutral canvas infused with subtle org tone
       return {
-        background: `linear-gradient(125deg, color-mix(in srgb, ${themeOrg.color} 6%, #DDE0E5) 0%, #F5F4F2 35%, color-mix(in srgb, ${themeOrg.color} 7%, #EAE7E4) 75%, color-mix(in srgb, ${themeOrg.color} 5%, #D7DAE0) 100%)`,
-        transition: 'background 0.4s ease',
+        backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${themeOrg.color} 12%, #E2E4E9) 0%, #F5F4F2 30%, color-mix(in srgb, ${themeOrg.color} 14%, #E8E5E2) 65%, color-mix(in srgb, ${themeOrg.color} 9%, #DDE0E5) 100%)`,
+        backgroundSize: '150% 150%',
         '--sreg-org-color': themeOrg.color,
         '--sreg-input-focus-border': themeOrg.color,
         '--sreg-input-focus-ring': focusRing
@@ -627,23 +734,36 @@ export default function StudentRegistrationView({ onBack }) {
 
   const snapPhoto = () => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
+    // B2: Guard against black frame — video must have valid dimensions AND have
+    // loaded enough data (readyState >= 2 = HAVE_CURRENT_DATA) before capturing.
+    if (!video || !video.videoWidth || video.readyState < 2) {
+      setCameraError('Camera is not ready yet. Please wait a moment and try again.');
+      // Clear error after 2 seconds so user can retry
+      setTimeout(() => setCameraError(''), 2000);
+      return;
+    }
 
-    // Capture full resolution from feed
+    // Center-crop to 1:1 square matching the 1:1 viewfinder and ID standard (1500 × 1500 px)
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const startX = (video.videoWidth - size) / 2;
+    const startY = (video.videoHeight - size) / 2;
+
     const offCanvas = document.createElement('canvas');
-    offCanvas.width = video.videoWidth;
-    offCanvas.height = video.videoHeight;
+    offCanvas.width = 1500;
+    offCanvas.height = 1500;
     const ctx = offCanvas.getContext('2d');
-    // Mirror horizontally to match preview
-    ctx.translate(offCanvas.width, 0);
+    // Mirror horizontally so the captured image matches what the user sees
+    ctx.translate(1500, 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+    ctx.drawImage(video, startX, startY, size, size, 0, 0, 1500, 1500);
 
     const fullDataUrl = offCanvas.toDataURL('image/jpeg', 0.95);
     setSnappedPhoto(fullDataUrl);
   };
 
   const retakePhoto = () => {
+    // B2: Clear any lingering camera error so the viewfinder re-shows
+    setCameraError('');
     setSnappedPhoto(null);
   };
 
@@ -906,6 +1026,14 @@ export default function StudentRegistrationView({ onBack }) {
     setHasSignature(false);
   };
 
+  // ── B4: Persist draft to sessionStorage whenever form state changes ──────────
+  useEffect(() => {
+    // Don't save draft once the form is submitted or on the success screen
+    if (!isSubmitted) {
+      saveDraft(currentStep, dobMonth, dobDay, dobYear, formData);
+    }
+  }, [formData, currentStep, dobMonth, dobDay, dobYear, isSubmitted]);
+
   // Validate step before advancing
   const validateStep = (step) => {
     if (step === 1) {
@@ -926,7 +1054,12 @@ export default function StudentRegistrationView({ onBack }) {
       if (!formData.residentialAddress.trim()) return 'Residential address is required.';
     } else if (step === 3) {
       if (!formData.contactPersonName.trim()) return 'Emergency contact person name is required.';
-      if (!formData.contactPersonNumber.trim()) return 'Emergency contact phone number is required.';
+      // B1 / QoL 3: Require at least 10 digits for a valid Philippine mobile/landline number
+      const cleanPhone = formData.contactPersonNumber.replace(/\D/g, '');
+      if (!cleanPhone) return 'Emergency contact phone number is required.';
+      if (cleanPhone.length < 10) {
+        return 'Contact number must be at least 10 digits (e.g. 0991 234 5678).';
+      }
       if (!formData.contactPersonAddress.trim()) return 'Emergency contact address is required.';
     } else if (step === 4) {
       if (!formData.photoUrl) return 'Student ID photo is required. Please capture or upload a photo.';
@@ -962,6 +1095,8 @@ export default function StudentRegistrationView({ onBack }) {
       const res = await studentApi.register(formData);
       setSubmissionResponse(res);
       setIsSubmitted(true);
+      // B4: Clear draft on successful submission so next student starts fresh
+      clearDraft();
     } catch (err) {
       setStepError(err.message || 'Registration submission failed. Please check your details and try again.');
     } finally {
@@ -974,6 +1109,8 @@ export default function StudentRegistrationView({ onBack }) {
     closeCameraModal();
     closeCropperModal();
     closeSignatureModal();
+    // B4: Clear persisted draft when resetting for a new student
+    clearDraft();
     setFormData({
       org: '',
       course: '',
@@ -1267,7 +1404,9 @@ export default function StudentRegistrationView({ onBack }) {
                           disabled={!formData.yearLevel}
                         >
                           <option value="">
-                            {formData.yearLevel ? 'Select Section' : 'Select a year level first'}
+                            {formData.yearLevel
+                              ? (availableSections.length > 0 ? 'Select Section' : 'No sections available')
+                              : 'Select a year level first'}
                           </option>
                           {availableSections.map((sec) => (
                             <option key={sec} value={sec}>
@@ -1295,7 +1434,7 @@ export default function StudentRegistrationView({ onBack }) {
                           type="text"
                           placeholder="e.g. Juan"
                           value={formData.firstName}
-                          onChange={(e) => handleChange('firstName', e.target.value)}
+                          onChange={(e) => handleChange('firstName', e)}
                         />
                       </div>
 
@@ -1306,7 +1445,7 @@ export default function StudentRegistrationView({ onBack }) {
                           type="text"
                           placeholder="e.g. Dela Cruz"
                           value={formData.middleName}
-                          onChange={(e) => handleChange('middleName', e.target.value)}
+                          onChange={(e) => handleChange('middleName', e)}
                         />
                       </div>
 
@@ -1319,7 +1458,7 @@ export default function StudentRegistrationView({ onBack }) {
                           type="text"
                           placeholder="e.g. Santos"
                           value={formData.lastName}
-                          onChange={(e) => handleChange('lastName', e.target.value)}
+                          onChange={(e) => handleChange('lastName', e)}
                         />
                       </div>
                     </div>
@@ -1334,7 +1473,7 @@ export default function StudentRegistrationView({ onBack }) {
                           type="text"
                           placeholder="20XX-XXXXX-BN-0"
                           value={formData.studentNumber}
-                          onChange={(e) => handleStudentNumberInput(e.target.value)}
+                          onChange={(e) => handleStudentNumberInput(e)}
                           maxLength={15}
                         />
                       </div>
@@ -1348,7 +1487,7 @@ export default function StudentRegistrationView({ onBack }) {
                           type="email"
                           placeholder="name@example.com"
                           value={formData.email}
-                          onChange={(e) => handleChange('email', e.target.value)}
+                          onChange={(e) => handleChange('email', e)}
                         />
                       </div>
                     </div>
@@ -1427,7 +1566,7 @@ export default function StudentRegistrationView({ onBack }) {
                           id="residentialAddress"
                           placeholder="House / Unit / Blk No., Street Name, Barangay, City / Municipality, Province"
                           value={formData.residentialAddress}
-                          onChange={(e) => handleChange('residentialAddress', e.target.value)}
+                          onChange={(e) => handleChange('residentialAddress', e)}
                           rows={2}
                         />
                       </div>
@@ -1450,7 +1589,7 @@ export default function StudentRegistrationView({ onBack }) {
                           type="text"
                           placeholder={FUNNY_CONTACT_NAMES[funnyNameIndex]}
                           value={formData.contactPersonName}
-                          onChange={(e) => handleChange('contactPersonName', e.target.value)}
+                          onChange={(e) => handleChange('contactPersonName', e)}
                         />
                       </div>
 
@@ -1461,10 +1600,10 @@ export default function StudentRegistrationView({ onBack }) {
                         <input
                           id="contactPersonNumber"
                           type="tel"
-                          placeholder="e.g. 09171234567"
+                          placeholder="e.g. 0991 234 5678"
                           value={formData.contactPersonNumber}
-                          onChange={(e) => handleContactNumberInput(e.target.value)}
-                          maxLength={11}
+                          onChange={(e) => handleContactNumberInput(e)}
+                          maxLength={13}
                           inputMode="numeric"
                         />
                       </div>
@@ -1472,7 +1611,7 @@ export default function StudentRegistrationView({ onBack }) {
 
                     <div className="sreg-field-group cols-1">
                       <div className="sreg-field">
-                        <label htmlFor="contactPersonAddress">
+                        <label htmlFor="contactPersonAddress" className="sreg-field-label">
                           Contact Person Address <span className="req">*</span>
                         </label>
                         <input
@@ -1480,20 +1619,17 @@ export default function StudentRegistrationView({ onBack }) {
                           type="text"
                           placeholder="House No., Street, Brgy, City, Province"
                           value={formData.contactPersonAddress}
-                          onChange={(e) => handleChange('contactPersonAddress', e.target.value)}
+                          onChange={(e) => handleChange('contactPersonAddress', e)}
                         />
+                        <label className="sreg-same-address-toggle">
+                          <input
+                            type="checkbox"
+                            checked={formData.sameAddress}
+                            onChange={handleSameAddressToggle}
+                          />
+                          <span>Same as student's permanent address</span>
+                        </label>
                       </div>
-                    </div>
-
-                    <div className="sreg-field-checkbox-inline">
-                      <label className="sreg-checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={formData.sameAddress}
-                          onChange={handleSameAddressToggle}
-                        />
-                        <span>Same as student's permanent address</span>
-                      </label>
                     </div>
                   </div>
                 )}
@@ -1545,6 +1681,13 @@ export default function StudentRegistrationView({ onBack }) {
                           </div>
 
                           <div className="sreg-compact-actions-wrap">
+                            <input
+                              type="file"
+                              ref={fileInputRef}
+                              onChange={handlePhotoUpload}
+                              accept="image/jpeg,image/png,image/webp"
+                              style={{ display: 'none' }}
+                            />
                             <button
                               type="button"
                               className="sreg-compact-btn-primary"
@@ -1554,6 +1697,15 @@ export default function StudentRegistrationView({ onBack }) {
                             >
                               <Camera size={15} weight="bold" />
                               <span>{formData.photoUrl ? 'Retake' : 'Capture via Camera'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="sreg-compact-btn-secondary"
+                              onClick={() => fileInputRef.current?.click()}
+                              title="Upload existing photo from device"
+                            >
+                              <UploadSimple size={15} weight="bold" />
+                              <span>Upload Photo</span>
                             </button>
 
                             {formData.photoUrl && (
@@ -1898,7 +2050,7 @@ export default function StudentRegistrationView({ onBack }) {
                     className="sreg-btn-prev"
                     onClick={closeCameraModal}
                   >
-                    Close & Use File Upload
+                    Close
                   </button>
                 </div>
               ) : (
@@ -2249,6 +2401,23 @@ export default function StudentRegistrationView({ onBack }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Submission Loading Screen (QoL) ───────────────────────── */}
+      {isSubmitting && (
+        <div className="sreg-modal-backdrop sreg-submitting-backdrop" role="dialog" aria-modal="true" aria-label="Submitting Registration">
+          <div className="sreg-submitting-dialog">
+            <div className="sreg-submitting-loader-wrap">
+              <div className="sreg-submitting-spinner" style={{ borderTopColor: themeOrg.color || '#7B0000' }} />
+              <img src="/img/logo/loadingmodal_logo.png" alt="ACES Synapse" className="sreg-submitting-logo" />
+            </div>
+            <h3 className="sreg-submitting-title">Submitting Registration</h3>
+            <p className="sreg-submitting-desc">
+              Please wait while your student records, digital signature, and biometric ID photo are securely uploaded and verified.
+            </p>
+            
           </div>
         </div>
       )}

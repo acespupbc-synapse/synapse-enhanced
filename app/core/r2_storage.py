@@ -8,6 +8,7 @@ import base64
 import io
 import re
 import time
+import unicodedata
 import uuid
 from typing import Optional
 
@@ -57,6 +58,22 @@ def decode_data_url(data_url: str) -> tuple[bytes, str]:
     return raw, content_type
 
 
+# Phase 1.4 / B7: Strict allowlist filename sanitizer
+# Uses unicode normalization to handle accented chars; keeps only ASCII letters,
+# digits, spaces, commas, periods, and hyphens. Prevents path traversal.
+_FILENAME_ALLOWED = re.compile(r"[^A-Za-z0-9 ,\.\-]")
+
+def _safe_filename(raw: str) -> str:
+    """Normalize and sanitize a filename to a safe ASCII subset."""
+    # Normalize unicode to closest ASCII equivalent (e.g. É -> E)
+    normalized = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode("ascii")
+    # Keep only the allowed character set
+    clean = _FILENAME_ALLOWED.sub("", normalized).strip()
+    # Strip any leading dots or slashes that could cause path traversal
+    clean = clean.lstrip("./").replace("..", "")
+    return clean or "unnamed"
+
+
 def upload_media(
     data_url: str,
     student_id: str,
@@ -65,9 +82,15 @@ def upload_media(
 ) -> str:
     """
     Upload a base64 DataURL to Cloudflare R2.
-    If filename is provided (e.g. 'HERNANDEZ, JOHN BENEDICT G.'), saves as:
-    '{media_type}s/{clean_name}.jpg'
-    Returns the R2 object key (not a URL — use get_presigned_url() to get readable URL).
+
+    Object key format:
+      With filename:  '{media_type}s/{clean_name}__{student_id[:8]}.jpg'
+      Without:        'students/{student_id}/{media_type}.jpg'
+
+    Using the student_id suffix (B7) prevents key collisions when two students
+    share the same name (e.g. 'REYES, JUAN A.').
+
+    Returns the R2 object key (not a URL — use get_presigned_url() to get a URL).
     """
     raw_bytes, content_type = decode_data_url(data_url)
 
@@ -75,14 +98,21 @@ def upload_media(
     if content_type not in ("image/jpeg", "image/jpg"):
         content_type = "image/jpeg"
 
+    # Phase 1.4: Use _safe_filename (strict allowlist) instead of the old blocklist.
+    # B7: Append first 8 chars of student_id to guarantee uniqueness per student.
     if filename:
-        clean_name = re.sub(r'[/\\:*?"<>|]', '', filename).strip()
-        object_key = f"{media_type}s/{clean_name}.jpg"
+        clean_name = _safe_filename(filename)
+        sid_suffix = str(student_id)[:8] if student_id else str(uuid.uuid4())[:8]
+        object_key = f"{media_type}s/{clean_name}__{sid_suffix}.jpg"
     else:
         object_key = f"students/{student_id}/{media_type}.jpg"
 
-    client = _get_client()
+    # Assert key stays within the expected prefix (belt-and-suspenders)
+    expected_prefix = f"{media_type}s/" if filename else f"students/"
+    if not object_key.startswith(expected_prefix):
+        raise ValueError(f"Constructed R2 key '{object_key}' is outside expected prefix.")
 
+    client = _get_client()
     client.put_object(
         Bucket=settings.cf_r2_bucket_name,
         Key=object_key,
@@ -101,12 +131,32 @@ def delete_media(object_key: str) -> None:
         pass  # Ignore missing object errors
 
 
+def delete_media_batch(object_keys: list[str]) -> None:
+    """Phase 3.7: Delete multiple objects from R2 in a single batch request (chunks of up to 1000)."""
+    valid_keys = [k for k in object_keys if k]
+    if not valid_keys:
+        return
+    try:
+        client = _get_client()
+        for i in range(0, len(valid_keys), 1000):
+            chunk = valid_keys[i : i + 1000]
+            client.delete_objects(
+                Bucket=settings.cf_r2_bucket_name,
+                Delete={"Objects": [{"Key": k} for k in chunk], "Quiet": True},
+            )
+    except Exception as e:
+        print(f"[WARN] Failed to batch delete R2 media: {e}")
+
+
 _presigned_url_cache: dict[str, tuple[str, float]] = {}
+# Phase 3.3: Cap the cache to prevent unbounded memory growth
+_MAX_PRESIGNED_CACHE_SIZE = 1000
 
 
 def get_presigned_url(object_key: str, expiry: int = PRESIGNED_EXPIRY) -> Optional[str]:
     """
-    Generate a presigned GET URL for a private R2 object with 30-minute in-memory caching.
+    Generate a presigned GET URL for a private R2 object with in-memory caching.
+    Cache is capped at 1000 entries; oldest entries are evicted when full.
     Returns None if the object_key is empty/None.
     """
     if not object_key:
@@ -123,7 +173,10 @@ def get_presigned_url(object_key: str, expiry: int = PRESIGNED_EXPIRY) -> Option
             Params={"Bucket": settings.cf_r2_bucket_name, "Key": object_key},
             ExpiresIn=expiry,
         )
-        # Cache for expiry - 300s or up to 30 mins
+        # Phase 3.3: Evict oldest entry if cache is at capacity before inserting
+        if len(_presigned_url_cache) >= _MAX_PRESIGNED_CACHE_SIZE:
+            oldest_key = next(iter(_presigned_url_cache))
+            del _presigned_url_cache[oldest_key]
         _presigned_url_cache[object_key] = (url, now + min(expiry - 300, 1800))
         return url
     except Exception as exc:
@@ -162,3 +215,33 @@ def validate_image_dimensions(
         return True, ""
     except Exception as exc:
         return False, f"Image validation failed: {str(exc)}"
+
+
+def get_bucket_metrics() -> dict:
+    """
+    Query Cloudflare R2 bucket for total object count, total bytes, and size in MB.
+    """
+    try:
+        client = _get_client()
+        paginator = client.get_paginator("list_objects_v2")
+        total_objects = 0
+        total_bytes = 0
+        for page in paginator.paginate(Bucket=settings.cf_r2_bucket_name):
+            for obj in page.get("Contents", []):
+                total_objects += 1
+                total_bytes += obj.get("Size", 0)
+        size_mb = round(total_bytes / (1024 * 1024), 2)
+        return {
+            "total_objects": total_objects,
+            "total_bytes": total_bytes,
+            "size_mb": size_mb,
+        }
+    except Exception as exc:
+        print(f"[WARN] Failed to get R2 bucket metrics: {exc}")
+        return {
+            "total_objects": 0,
+            "total_bytes": 0,
+            "size_mb": 0.0,
+            "error": str(exc),
+        }
+

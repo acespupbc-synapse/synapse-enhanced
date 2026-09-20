@@ -26,11 +26,33 @@ from app.schemas.export import transform_student_to_mdb_csv
 router = APIRouter(prefix="/api/admin/exports", tags=["exports"])
 
 
+async def _get_active_ay_name(db: AsyncSession) -> str:
+    """Fetch the active academic year name from system settings."""
+    from app.models.config import SystemSettings
+    from sqlalchemy.orm import selectinload
+    try:
+        settings_result = await db.execute(
+            select(SystemSettings).options(selectinload(SystemSettings.active_ay)).limit(1)
+        )
+        system_settings = settings_result.scalar_one_or_none()
+        if system_settings and system_settings.active_ay:
+            return system_settings.active_ay.name.replace("AY", "").strip()
+    except Exception:
+        pass
+    return "2026-2027"
+
+
 async def _get_active_students(
     db: AsyncSession,
     program: Optional[str] = None,
     section: Optional[str] = None,
 ):
+    from app.models.config import SystemSettings
+    # Resolve active AY to filter exports to the current academic year only
+    settings_res = await db.execute(select(SystemSettings).limit(1))
+    sys_settings = settings_res.scalar_one_or_none()
+    active_ay_id = sys_settings.active_ay_id if sys_settings else None
+
     query = (
         select(Student)
         .options(
@@ -40,6 +62,11 @@ async def _get_active_students(
         )
         .where(Student.deleted_at.is_(None))
     )
+
+    # Always scope to active AY when set
+    if active_ay_id:
+        query = query.where(Student.academic_year_id == active_ay_id)
+
     if program:
         clean_prog = program.strip().upper()
         if clean_prog in ("BSP", "BSPSY"):
@@ -82,23 +109,14 @@ async def export_csv(
         except Exception:
             continue
 
-    # Resolve academic year for filename: {AcademicYear}_{Program}_{Section}.csv
-    ay_str = "2026-2027"
-    if students and students[0].academic_year:
-        ay_str = students[0].academic_year.name.replace("AY ", "").replace("AY", "").strip()
-
-    export_prog = "BSP" if (program and program.strip().upper() in ("BSPSY", "BSP")) else program
-    if export_prog and section:
-        filename = f"{ay_str}_{export_prog}_{section}.csv"
-    elif export_prog:
-        filename = f"{ay_str}_{export_prog}.csv"
-    else:
-        filename = f"{ay_str}_All_Registrations.csv"
+    # Resolve active AY for filename
+    ay_name = await _get_active_ay_name(db)
+    base_filename = f"PUP Binan AY {ay_name}.csv"
 
     return Response(
         content="\n".join(rows),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{base_filename.replace(' ', '%20')}"},
     )
 
 
@@ -140,22 +158,13 @@ async def export_mdb(
 
     mdb_bytes = generate_mdb_bytes(students, media_cache)
 
-    ay_str = "2026-2027"
-    if students and students[0].academic_year:
-        ay_str = students[0].academic_year.name.replace("AY ", "").replace("AY", "").strip()
-
-    export_prog = "BSP" if (program and program.strip().upper() in ("BSPSY", "BSP")) else program
-    if export_prog and section:
-        filename = f"{ay_str}_{export_prog}_{section}.mdb"
-    elif export_prog:
-        filename = f"{ay_str}_{export_prog}.mdb"
-    else:
-        filename = f"{ay_str}_All_Registrations.mdb"
+    ay_name = await _get_active_ay_name(db)
+    base_filename = f"PUP Binan AY {ay_name}.mdb"
 
     return Response(
         content=mdb_bytes,
         media_type="application/x-msaccess",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{base_filename.replace(' ', '%20')}"},
     )
 
 
@@ -223,18 +232,13 @@ async def export_xlsx(
     wb.save(buffer)
     buffer.seek(0)
 
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    tag = ""
-    if program and section:
-        tag = f"_{program}_{section}"
-    elif program:
-        tag = f"_{program}"
-    filename = f"ACES_Synapse_Export{tag}_{date_str}.xlsx"
+    ay_name = await _get_active_ay_name(db)
+    base_xlsx_filename = f"PUP Binan AY {ay_name}.xlsx"
 
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{base_xlsx_filename.replace(' ', '%20')}"},
     )
 
 
@@ -356,203 +360,232 @@ async def export_archive(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
+    import asyncio
     import json
+    import os
     import re
+    import tempfile
     import zipfile
     import openpyxl
+    from fastapi.responses import FileResponse
+    from starlette.background import BackgroundTask
     from app.core.config import get_settings
     from app.core.r2_storage import _get_client
 
     settings_cfg = get_settings()
     students = await _get_active_students(db)
 
-    # 1. Generate CardFive MDB CSV
-    csv_headers = [
-        "STUDNO", "LASTNAME", "GENDER", "MDLENAME", "BRTHPLCE", "ADMSYEAR",
-        "FRSTNAME", "BRTHDATE", "EMAILADR", "MPHNNMBR", "PERMBLDG", "PROGCODE",
-        "PERMDSTR", "PERMCITY", "PERMSTAD", "PERMCTRY", "PERMPOST", "PHNENMBR",
-        "PERMSTRT", "CTCTPRSN", "CTCTBLDG", "CTCTDSTR", "CTCTCITY", "CTCTSTAD",
-        "CTCTPOST", "CPHNNMBR", "CTCTSTRT", "RCRDDATE", "CTCTNMBR", "ACADLEVL",
-    ]
-    csv_rows = [",".join(csv_headers)]
-    for s in students:
-        try:
-            record = transform_student_to_mdb_csv(s)
-            row = [f'"{getattr(record, h, "")}"' for h in csv_headers]
-            csv_rows.append(",".join(row))
-        except Exception:
-            continue
-    csv_data = "\n".join(csv_rows)
+    def _create_archive_zip() -> str:
+        # Phase 3.6: Write directly to a temporary file on disk instead of accumulating in RAM
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+            tmp_path = tmp.name
 
-    # 2. Generate Excel (XLSX)
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Student Registrations"
-    col_headers = [
-        "Student No.", "Last Name", "First Name", "Middle Name", "Gender",
-        "Birth Date", "Email", "Course", "Section", "Year Level",
-        "Academic Year", "Residential Address", "Contact Person",
-        "Contact Number", "Contact Address", "Status", "Registered On",
-    ]
-    for col_idx, h in enumerate(col_headers, start=1):
-        ws.cell(row=1, column=col_idx, value=h)
-    for row_idx, s in enumerate(students, start=2):
-        ws.cell(row=row_idx, column=1, value=s.student_number)
-        ws.cell(row=row_idx, column=2, value=s.last_name)
-        ws.cell(row=row_idx, column=3, value=s.first_name)
-        ws.cell(row=row_idx, column=4, value=s.middle_name or "")
-        ws.cell(row=row_idx, column=5, value=s.gender or "")
-        ws.cell(row=row_idx, column=6, value=s.birth_date.strftime("%Y-%m-%d") if s.birth_date else "")
-        ws.cell(row=row_idx, column=7, value=s.email)
-        ws.cell(row=row_idx, column=8, value=s.course.code if s.course else "")
-        ws.cell(row=row_idx, column=9, value=s.section.name if s.section else "")
-        ws.cell(row=row_idx, column=10, value=s.section.year_level if s.section else "")
-        ws.cell(row=row_idx, column=11, value=s.academic_year.name if s.academic_year else "")
-        ws.cell(row=row_idx, column=12, value=s.perm_strt or "")
-        ws.cell(row=row_idx, column=13, value=s.contact_person_name or "")
-        ws.cell(row=row_idx, column=14, value=s.contact_person_number or "")
-        ws.cell(row=row_idx, column=15, value=s.contact_strt or "")
-        ws.cell(row=row_idx, column=16, value=s.status)
-        ws.cell(row=row_idx, column=17, value=s.created_at.strftime("%Y-%m-%d") if s.created_at else "")
-    xlsx_buf = io.BytesIO()
-    wb.save(xlsx_buf)
-    xlsx_data = xlsx_buf.getvalue()
-
-    # 3. Generate JSON database records
-    json_records = []
-    for s in students:
-        json_records.append({
-            "id": str(s.id),
-            "student_number": s.student_number,
-            "first_name": s.first_name,
-            "middle_name": s.middle_name,
-            "last_name": s.last_name,
-            "gender": s.gender,
-            "birth_date": s.birth_date.isoformat() if s.birth_date else None,
-            "email": s.email,
-            "course": s.course.code if s.course else None,
-            "section": s.section.name if s.section else None,
-            "academic_year": s.academic_year.name if s.academic_year else None,
-            "residential_address": s.perm_strt,
-            "contact_person": s.contact_person_name,
-            "contact_number": s.contact_person_number,
-            "photo_key": s.photo_r2_key,
-            "signature_key": s.signature_r2_key,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-        })
-    json_data = json.dumps({
-        "archiveType": "ACES_SYNAPSE_COMPLETE_ARCHIVE",
-        "exportedAt": datetime.now().isoformat(),
-        "totalRecords": len(students),
-        "records": json_records
-    }, indent=2)
-
-    # 4. Assemble ZIP
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("CardFive_MDB_Export.csv", csv_data)
-        zf.writestr("Students_Roster.xlsx", xlsx_data)
-        zf.writestr("Database_Records.json", json_data)
-        zf.writestr("README.txt", f"ACES Synapse Complete Backup Archive\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nTotal Student Records: {len(students)}\n")
-
-        # 4. Download media from R2 into local cache
-        media_cache = {}
-        try:
-            r2_client = _get_client()
-            bucket = settings_cfg.cf_r2_bucket_name
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            # 1. Generate CardFive MDB CSV
+            csv_headers = [
+                "STUDNO", "LASTNAME", "GENDER", "MDLENAME", "BRTHPLCE", "ADMSYEAR",
+                "FRSTNAME", "BRTHDATE", "EMAILADR", "MPHNNMBR", "PERMBLDG", "PROGCODE",
+                "PERMDSTR", "PERMCITY", "PERMSTAD", "PERMCTRY", "PERMPOST", "PHNENMBR",
+                "PERMSTRT", "CTCTPRSN", "CTCTBLDG", "CTCTDSTR", "CTCTCITY", "CTCTSTAD",
+                "CTCTPOST", "CPHNNMBR", "CTCTSTRT", "RCRDDATE", "CTCTNMBR", "ACADLEVL",
+            ]
+            csv_rows = [",".join(csv_headers)]
             for s in students:
-                if s.photo_r2_key and s.photo_r2_key not in media_cache:
-                    try:
-                        obj = r2_client.get_object(Bucket=bucket, Key=s.photo_r2_key)
-                        media_cache[s.photo_r2_key] = obj["Body"].read()
-                    except Exception:
-                        pass
-                if s.signature_r2_key and s.signature_r2_key not in media_cache:
-                    try:
-                        obj = r2_client.get_object(Bucket=bucket, Key=s.signature_r2_key)
-                        media_cache[s.signature_r2_key] = obj["Body"].read()
-                    except Exception:
-                        pass
-        except Exception as e:
-            print(f"[WARN] Archive R2 media bundle: {e}")
-
-        # 5. Group students by (AY, Course, Section) for structured folder export
-        groups = {}
-        for s in students:
-            ay_dir = (s.academic_year.name if s.academic_year else "2026-2027").replace("AY", "").strip()
-            raw_course = s.course.code if s.course else "BSCpE"
-            course_dir = "BSP" if raw_course.upper() in ("BSPSY", "BSP") else raw_course
-            sec_dir = s.section.name if s.section else "1-1"
-            key = (ay_dir, course_dir, sec_dir)
-            if key not in groups:
-                groups[key] = []
-            groups[key].append(s)
-
-        # Write per-section CSV, MDB, and media into {AY}/{Program}/{Section}/
-        for (ay_dir, course_dir, sec_dir), sec_students in groups.items():
-            folder_prefix = f"{ay_dir}/{course_dir}/{sec_dir}"
-            file_base = f"{ay_dir}_{course_dir}_{sec_dir}"
-
-            # Section CSV
-            sec_csv_rows = [",".join(csv_headers)]
-            for s in sec_students:
                 try:
                     record = transform_student_to_mdb_csv(s)
                     row = [f'"{getattr(record, h, "")}"' for h in csv_headers]
-                    sec_csv_rows.append(",".join(row))
+                    csv_rows.append(",".join(row))
                 except Exception:
                     continue
-            zf.writestr(f"{folder_prefix}/{file_base}.csv", "\n".join(sec_csv_rows))
+            # (CSV and XLSX written below with AY-prefixed filenames)
 
-            # Section MDB with binary pictures/signatures
+            # 2. Generate Excel (XLSX)
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Student Registrations"
+            col_headers = [
+                "Student No.", "Last Name", "First Name", "Middle Name", "Gender",
+                "Birth Date", "Email", "Course", "Section", "Year Level",
+                "Academic Year", "Residential Address", "Contact Person",
+                "Contact Number", "Contact Address", "Status", "Registered On",
+            ]
+            for col_idx, h in enumerate(col_headers, start=1):
+                ws.cell(row=1, column=col_idx, value=h)
+            for row_idx, s in enumerate(students, start=2):
+                ws.cell(row=row_idx, column=1, value=s.student_number)
+                ws.cell(row=row_idx, column=2, value=s.last_name)
+                ws.cell(row=row_idx, column=3, value=s.first_name)
+                ws.cell(row=row_idx, column=4, value=s.middle_name or "")
+                ws.cell(row=row_idx, column=5, value=s.gender or "")
+                ws.cell(row=row_idx, column=6, value=s.birth_date.strftime("%Y-%m-%d") if s.birth_date else "")
+                ws.cell(row=row_idx, column=7, value=s.email)
+                ws.cell(row=row_idx, column=8, value=s.course.code if s.course else "")
+                ws.cell(row=row_idx, column=9, value=s.section.name if s.section else "")
+                ws.cell(row=row_idx, column=10, value=s.section.year_level if s.section else "")
+                ws.cell(row=row_idx, column=11, value=s.academic_year.name if s.academic_year else "")
+                ws.cell(row=row_idx, column=12, value=s.perm_strt or "")
+                ws.cell(row=row_idx, column=13, value=s.contact_person_name or "")
+                ws.cell(row=row_idx, column=14, value=s.contact_person_number or "")
+                ws.cell(row=row_idx, column=15, value=s.contact_strt or "")
+                ws.cell(row=row_idx, column=16, value=s.status)
+                ws.cell(row=row_idx, column=17, value=s.created_at.strftime("%Y-%m-%d") if s.created_at else "")
+            xlsx_buf = io.BytesIO()
+            wb.save(xlsx_buf)
+            # (XLSX written below with AY-prefixed filename)
+
+            # 3. Generate JSON database records
+            json_records = []
+            for s in students:
+                json_records.append({
+                    "id": str(s.id),
+                    "student_number": s.student_number,
+                    "first_name": s.first_name,
+                    "middle_name": s.middle_name,
+                    "last_name": s.last_name,
+                    "gender": s.gender,
+                    "birth_date": s.birth_date.isoformat() if s.birth_date else None,
+                    "email": s.email,
+                    "course": s.course.code if s.course else None,
+                    "section": s.section.name if s.section else None,
+                    "academic_year": s.academic_year.name if s.academic_year else None,
+                    "residential_address": s.perm_strt,
+                    "contact_person": s.contact_person_name,
+                    "contact_number": s.contact_person_number,
+                    "photo_key": s.photo_r2_key,
+                    "signature_key": s.signature_r2_key,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                })
+            json_data = json.dumps({
+                "archiveType": "ACES_SYNAPSE_COMPLETE_ARCHIVE",
+                "exportedAt": datetime.now().isoformat(),
+                "totalRecords": len(students),
+                "records": json_records
+            }, indent=2)
+            zf.writestr("Database_Records.json", json_data)
+            zf.writestr("README.txt", f"ACES Synapse Complete Backup Archive\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nTotal Student Records: {len(students)}\n")
+
+            # 4. Download media from R2 into cache
+            media_cache = {}
+            try:
+                r2_client = _get_client()
+                bucket = settings_cfg.cf_r2_bucket_name
+                for s in students:
+                    if s.photo_r2_key and s.photo_r2_key not in media_cache:
+                        try:
+                            obj = r2_client.get_object(Bucket=bucket, Key=s.photo_r2_key)
+                            media_cache[s.photo_r2_key] = obj["Body"].read()
+                        except Exception:
+                            pass
+                    if s.signature_r2_key and s.signature_r2_key not in media_cache:
+                        try:
+                            obj = r2_client.get_object(Bucket=bucket, Key=s.signature_r2_key)
+                            media_cache[s.signature_r2_key] = obj["Body"].read()
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"[WARN] Archive R2 media bundle: {e}")
+
+            # 5. Group students by (AY, Course, Section) for structured folder export
+            groups = {}
+            for s in students:
+                ay_dir = (s.academic_year.name if s.academic_year else "2026-2027").replace("AY", "").strip()
+                raw_course = s.course.code if s.course else "BSCpE"
+                course_dir = "BSP" if raw_course.upper() in ("BSPSY", "BSP") else raw_course
+                sec_dir = s.section.name if s.section else "1-1"
+                key = (ay_dir, course_dir, sec_dir)
+                if key not in groups:
+                    groups[key] = []
+                groups[key].append(s)
+
+            # Write per-section CSV, MDB, and media into {AY}/{Program}/{Section}/
+            for (ay_dir, course_dir, sec_dir), sec_students in groups.items():
+                folder_prefix = f"{ay_dir}/{course_dir}/{sec_dir}"
+                file_base = f"{ay_dir}_{course_dir}_{sec_dir}"
+
+                sec_csv_rows = [",".join(csv_headers)]
+                for s in sec_students:
+                    try:
+                        record = transform_student_to_mdb_csv(s)
+                        row = [f'"{getattr(record, h, "")}"' for h in csv_headers]
+                        sec_csv_rows.append(",".join(row))
+                    except Exception:
+                        continue
+                zf.writestr(f"{folder_prefix}/{file_base}.csv", "\n".join(sec_csv_rows))
+
+                # Section MDB with binary pictures/signatures
+                try:
+                    from app.core.mdb_generator import generate_mdb_bytes
+                    sec_mdb_bytes = generate_mdb_bytes(sec_students, media_cache)
+                    zf.writestr(f"{folder_prefix}/{file_base}.mdb", sec_mdb_bytes)
+                except Exception as err:
+                    print(f"[WARN] Failed to write section MDB for {folder_prefix}: {err}")
+
+                # Section Media: PICTURES/ and SIGNATURES/
+                written_paths = set()
+                for s in sec_students:
+                    surname = re.sub(r'[^A-Za-z0-9]', '', s.last_name or '').upper()
+                    firstname = re.sub(r'[^A-Za-z0-9]', '', s.first_name or '').upper()
+                    mi = re.sub(r'[^A-Za-z0-9]', '', (s.middle_name or '')[:1]).upper()
+                    s_num = re.sub(r'[^A-Za-z0-9]', '', s.student_number or '').upper()
+                    name_part = f"{surname}_{firstname}_{mi}".strip('_')
+
+                    if s.photo_r2_key and s.photo_r2_key in media_cache:
+                        pic_path = f"{folder_prefix}/PICTURES/{name_part}__PICTURE.JPG"
+                        if pic_path in written_paths:
+                            pic_path = f"{folder_prefix}/PICTURES/{name_part}_{s_num}__PICTURE.JPG"
+                        zf.writestr(pic_path, media_cache[s.photo_r2_key])
+                        written_paths.add(pic_path)
+
+                    if s.signature_r2_key and s.signature_r2_key in media_cache:
+                        sig_path = f"{folder_prefix}/SIGNATURES/{name_part}__SIGNATURE.JPG"
+                        if sig_path in written_paths:
+                            sig_path = f"{folder_prefix}/SIGNATURES/{name_part}_{s_num}__SIGNATURE.JPG"
+                        zf.writestr(sig_path, media_cache[s.signature_r2_key])
+                        written_paths.add(sig_path)
+
+            # 6. Master root CardFive MDB containing all records (named with active AY)
+            ay_for_zip = ""
+            if students:
+                for s in students:
+                    if s.academic_year:
+                        ay_for_zip = s.academic_year.name.replace("AY", "").strip()
+                        break
+            if not ay_for_zip:
+                ay_for_zip = "2026-2027"
+
+            mdb_root_name = f"PUP Binan AY {ay_for_zip}.mdb"
+            xlsx_root_name = f"PUP Binan AY {ay_for_zip}.xlsx"
+            csv_root_name = f"PUP Binan AY {ay_for_zip}.csv"
+
+            # Re-write root files with new names
+            zf.writestr(csv_root_name, "\n".join(csv_rows))
+            zf.writestr(xlsx_root_name, xlsx_buf.getvalue())
+
             try:
                 from app.core.mdb_generator import generate_mdb_bytes
-                sec_mdb_bytes = generate_mdb_bytes(sec_students, media_cache)
-                zf.writestr(f"{folder_prefix}/{file_base}.mdb", sec_mdb_bytes)
+                mdb_bytes = generate_mdb_bytes(students, media_cache)
+                zf.writestr(mdb_root_name, mdb_bytes)
             except Exception as err:
-                print(f"[WARN] Failed to write section MDB for {folder_prefix}: {err}")
+                print(f"[WARN] Failed to write master MDB into archive: {err}")
 
-            # Section Media: PICTURES/ and SIGNATURES/
-            written_paths = set()
-            for s in sec_students:
-                surname = re.sub(r'[^A-Za-z0-9]', '', s.last_name or '').upper()
-                firstname = re.sub(r'[^A-Za-z0-9]', '', s.first_name or '').upper()
-                mi = re.sub(r'[^A-Za-z0-9]', '', (s.middle_name or '')[:1]).upper()
-                s_num = re.sub(r'[^A-Za-z0-9]', '', s.student_number or '').upper()
-                name_part = f"{surname}_{firstname}_{mi}".strip('_')
+        return tmp_path
 
-                if s.photo_r2_key and s.photo_r2_key in media_cache:
-                    pic_path = f"{folder_prefix}/PICTURES/{name_part}__PICTURE.JPG"
-                    if pic_path in written_paths:
-                        pic_path = f"{folder_prefix}/PICTURES/{name_part}_{s_num}__PICTURE.JPG"
-                    zf.writestr(pic_path, media_cache[s.photo_r2_key])
-                    written_paths.add(pic_path)
+    # Phase 3.5 & 3.6: Offload heavy compression to thread pool, stream via FileResponse, and delete temp file on finish
+    zip_temp_path = await asyncio.to_thread(_create_archive_zip)
+    ay_for_filename = await _get_active_ay_name(db)
+    filename = f"PUP Binan AY {ay_for_filename} - Complete Archive.zip"
 
-                if s.signature_r2_key and s.signature_r2_key in media_cache:
-                    sig_path = f"{folder_prefix}/SIGNATURES/{name_part}__SIGNATURE.JPG"
-                    if sig_path in written_paths:
-                        sig_path = f"{folder_prefix}/SIGNATURES/{name_part}_{s_num}__SIGNATURE.JPG"
-                    zf.writestr(sig_path, media_cache[s.signature_r2_key])
-                    written_paths.add(sig_path)
-
-        # 6. Master root CardFive MDB containing all records
+    def _cleanup_temp_zip():
         try:
-            from app.core.mdb_generator import generate_mdb_bytes
-            mdb_bytes = generate_mdb_bytes(students, media_cache)
-            zf.writestr("CardFive_Database.mdb", mdb_bytes)
-        except Exception as err:
-            print(f"[WARN] Failed to write master MDB into archive: {err}")
+            if os.path.exists(zip_temp_path):
+                os.unlink(zip_temp_path)
+        except Exception:
+            pass
 
-    zip_data = zip_buffer.getvalue()
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    filename = f"ACES_Synapse_Complete_Archive_{date_str}.zip"
-
-    return Response(
-        content=zip_data,
+    return FileResponse(
+        path=zip_temp_path,
         media_type="application/zip",
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}",
-            "Content-Length": str(len(zip_data)),
-        },
+        filename=filename,
+        background=BackgroundTask(_cleanup_temp_zip),
     )
 

@@ -23,11 +23,20 @@ export default function Sidebar({
   const location = useLocation();
 
   const navItems = [
-    { id: 'dashboard',     path: '/dashboard',     label: 'Dashboard',         icon: House },
-    { id: 'registrations', path: '/registrations', label: 'Registrations',     icon: Users },
-    { id: 'programs',      path: '/programs',      label: 'Programs',          icon: GraduationCap },
-    { id: 'recycle',       path: '/recycle-bin',   label: 'Recycle Bin',       icon: Trash },
-    { id: 'settings',      path: '/settings',      label: 'Settings',          icon: Gear },
+    { id: 'dashboard',     path: '/dashboard',     label: 'Dashboard',     icon: House },
+    { id: 'registrations', path: '/registrations', label: 'Registrations', icon: Users },
+    { id: 'programs',      path: '/programs',      label: 'Programs',      icon: GraduationCap },
+    { id: 'recycle',       path: '/recycle-bin',   label: 'Recycle Bin',   icon: Trash },
+    { id: 'settings',      path: '/settings',      label: 'Settings',      icon: Gear },
+  ];
+
+  // Mobile bottom nav includes Student Registration as a dedicated tab
+  const mobileNavItems = [
+    { id: 'dashboard',     path: '/dashboard',     label: 'Dashboard',  icon: House },
+    { id: 'registrations', path: '/registrations', label: 'Students',   icon: Users },
+    { id: 'register',      path: null,             label: 'Register',   icon: UserPlus, action: true },
+    { id: 'programs',      path: '/programs',      label: 'Programs',   icon: GraduationCap },
+    { id: 'settings',      path: '/settings',      label: 'Settings',   icon: Gear },
   ];
 
   const [navigatingPath, setNavigatingPath] = React.useState(null);
@@ -56,29 +65,15 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile Top Header */}
+      {/* Mobile Top Header — only on mobile, hidden on desktop */}
       <header className="mobile-header">
         <div className="mobile-header-brand">
           <img src="/img/logo/synapse-banner.png" alt="ACES Synapse" className="mobile-banner-img" />
         </div>
-        <button
-          className="mobile-hamburger"
-          onClick={() => setIsOpenMobile(!isOpenMobile)}
-          aria-label={isOpenMobile ? 'Close menu' : 'Open menu'}
-        >
-          {isOpenMobile ? <X size={26} /> : <List size={26} />}
-        </button>
       </header>
 
-      {/* Backdrop for Mobile Drawer */}
-      <div
-        className={`sidebar-backdrop ${isOpenMobile ? 'active' : ''}`}
-        onClick={() => setIsOpenMobile(false)}
-        aria-hidden="true"
-      />
-
-      {/* Sidebar Container */}
-      <aside className={`sidebar-container ${isOpenMobile ? 'open' : ''}`}>
+      {/* Desktop Sidebar */}
+      <aside className="sidebar-container">
         
         {/* Brand Header */}
         <div className="sidebar-brand-header">
@@ -134,6 +129,31 @@ export default function Sidebar({
           </button>
         </div>
       </aside>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+        {mobileNavItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = item.path ? isItemActive(item) : false;
+          return (
+            <button
+              key={item.id}
+              className={`mobile-bottom-nav-item ${isActive ? 'active' : ''} ${item.action ? 'action' : ''}`}
+              onClick={() => {
+                if (item.action) {
+                  (onOpenRegistration || (() => navigate('/register')))();
+                } else {
+                  handleNavClick(item.path);
+                }
+              }}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <Icon size={22} weight={isActive ? 'fill' : 'regular'} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </>
   );
 }

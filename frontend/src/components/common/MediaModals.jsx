@@ -79,12 +79,23 @@ export function CameraModal({ isOpen, onClose, onCapture }) {
   }, [isOpen]);
 
   const handleSnap = () => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    // B2/B6: Guard against black frame — video must have loaded frames (readyState >= 2)
+    if (!video || !video.videoWidth || video.readyState < 2) return;
+
+    // Center-crop to 1:1 square matching the 1:1 viewfinder and ID standard (1500 × 1500 px)
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const startX = (video.videoWidth - size) / 2;
+    const startY = (video.videoHeight - size) / 2;
+
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth || 640;
-    canvas.height = videoRef.current.videoHeight || 480;
+    canvas.width = 1500;
+    canvas.height = 1500;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    // B6: Mirror the canvas horizontally to match the CSS-mirrored preview.
+    ctx.translate(1500, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, startX, startY, size, size, 0, 0, 1500, 1500);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     setSnappedPhoto(dataUrl);
     stopStream();
@@ -168,7 +179,6 @@ export function CameraModal({ isOpen, onClose, onCapture }) {
                     src={snappedPhoto}
                     alt="Captured preview"
                     className="sreg-cam-preview-img"
-                    style={{ transform: 'scaleX(-1)' }}
                   />
                   <div className="sreg-cam-preview-badge">
                     <CheckCircle size={14} weight="bold" /> Photo Captured
@@ -231,6 +241,8 @@ export function CropperModal({ isOpen, onClose, imageSrc, onApplyCrop }) {
   const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
   const [cropRotation, setCropRotation] = useState(0);
   const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, initialX: 0, initialY: 0 });
+  // B8: Read actual rendered viewport size so scaleRatio is correct on all screens
+  const viewportRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -303,7 +315,7 @@ export function CropperModal({ isOpen, onClose, imageSrc, onApplyCrop }) {
         const drawWidth = natW * baseScale;
         const drawHeight = natH * baseScale;
 
-        const scaleRatio = 1500 / 320; // 320 is viewport width
+        const scaleRatio = 1500 / (viewportRef.current?.offsetWidth || 320); // B8: use actual rendered size
 
         ctx.save();
         ctx.translate(750, 750);
@@ -353,6 +365,7 @@ export function CropperModal({ isOpen, onClose, imageSrc, onApplyCrop }) {
 
         <div className="sreg-cropper-modal-body">
           <div
+            ref={viewportRef}
             className="sreg-crop-viewport"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}

@@ -5,7 +5,9 @@ POST /api/auth/logout
 GET  /api/auth/me
 POST /api/auth/change-password
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+import time
+from collections import defaultdict
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -26,9 +28,37 @@ from app.schemas.auth import (
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# Phase 1.2: In-process login rate limiter.
+# Tracks {ip: [attempt_timestamp, ...]} with a 60-second sliding window.
+# Max 10 attempts per IP per 60 seconds. For multi-worker deployments, replace
+# with a Redis-backed solution (e.g., slowapi + Redis).
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_MAX_ATTEMPTS = 10
+_LOGIN_WINDOW_SECONDS = 60
+
+
+def _check_login_rate_limit(client_ip: str) -> None:
+    """Raise 429 if the IP has exceeded the login rate limit."""
+    now = time.time()
+    window_start = now - _LOGIN_WINDOW_SECONDS
+    # Prune attempts outside the sliding window
+    attempts = [t for t in _login_attempts[client_ip] if t > window_start]
+    _login_attempts[client_ip] = attempts
+    if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many login attempts. Please wait {_LOGIN_WINDOW_SECONDS} seconds.",
+            headers={"Retry-After": str(_LOGIN_WINDOW_SECONDS)},
+        )
+    _login_attempts[client_ip].append(now)
+
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    # Phase 1.2: Rate limit by client IP before any DB query
+    client_ip = request.client.host if request.client else "unknown"
+    _check_login_rate_limit(client_ip)
+
     result = await db.execute(
         select(AdminUser).where(AdminUser.username == payload.username, AdminUser.is_active == True)
     )

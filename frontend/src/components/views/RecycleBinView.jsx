@@ -4,8 +4,6 @@ import {
   Trash,
   ArrowCounterClockwise,
   Warning,
-  ShieldCheck,
-  Check,
   Users
 } from '@phosphor-icons/react';
 import { studentApi } from '../../services/api';
@@ -114,17 +112,12 @@ export default function RecycleBinView() {
         {records.length === 0 && (
           <div className="recycle-empty-state">
             <div className="recycle-empty-icon">
-              <ShieldCheck size={36} weight="duotone" color="#10B981" />
+              <Trash size={30} weight="duotone" color="rgba(200,80,80,0.85)" />
             </div>
-            <p className="recycle-empty-title">The Recycle Bin is Clean</p>
+            <p className="recycle-empty-title">Recycle Bin is Empty</p>
             <p className="recycle-empty-sub">
-              No soft-deleted student registrations. Any deleted records will remain
-              recoverable here until permanently purged by an authorized administrator.
+              No deleted registrations. Records removed from the student registry will appear here and can be restored or permanently purged.
             </p>
-            <div className="recycle-clean-badge">
-              <Check size={14} weight="bold" />
-              0 Deleted Records
-            </div>
           </div>
         )}
 

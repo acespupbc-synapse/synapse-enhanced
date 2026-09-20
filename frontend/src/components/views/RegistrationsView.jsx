@@ -618,7 +618,12 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
   const sections = buildSections(program.code, students, program);
   const yearLevels = Object.keys(sections);
 
+  const prevProgRef = useRef(program.code);
+
   useEffect(() => {
+    const progChanged = prevProgRef.current !== program.code;
+    prevProgRef.current = program.code;
+
     setIsLoading(true);
     studentApi.getAll({ program: program.code })
       .then((data) => {
@@ -641,7 +646,7 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
             residentialAddress: s.perm_strt || '',
             emergencyContactName: s.contact_person_name || '',
             emergencyContactNumber: s.contact_person_number || '',
-            emergencyAddress: s.perm_strt || '',
+            emergencyAddress: s.contact_strt || '',
             photoUrl: s.photo_url || null,
             signatureUrl: s.signature_url || null,
             createdAt: s.created_at || null,
@@ -651,12 +656,21 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
           const computedSections = buildSections(program.code, mapped, program);
           const firstYr = Object.keys(computedSections)[0];
           const initialSec = computedSections[firstYr]?.[0] || { sec: '1-1', count: 0 };
-          setActiveSection(initialSec);
+          setActiveSection((prev) => {
+            if (!progChanged && prev?.sec && prev.sec !== 'All') {
+              for (const yr of Object.keys(computedSections)) {
+                const found = computedSections[yr]?.find((s) => s.sec === prev.sec);
+                if (found) return found;
+              }
+              return prev;
+            }
+            return initialSec;
+          });
         }
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
-  }, [program.code, org?.code]);
+  }, [program.code, org?.code, stats?.ayName, stats?.activeAcademicYear]);
 
   // Sorting state (strictly 4 options)
   const [sortBy, setSortBy] = useState('name-asc');
@@ -741,13 +755,35 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
 
   const handleSaveStudent = async (updatedRecord) => {
     try {
-      await studentApi.update(updatedRecord.id, updatedRecord);
-    } catch (_) {}
-    setStudents(prev => prev.map(s => s.id === updatedRecord.id ? updatedRecord : s));
-    if (onShowToast) {
-      onShowToast(`Student record for ${updatedRecord.name} updated successfully.`);
+      const serverStudent = await studentApi.update(updatedRecord.id, updatedRecord);
+      const mappedRecord = {
+        ...updatedRecord,
+        ...(serverStudent ? {
+          name: `${serverStudent.last_name}, ${serverStudent.first_name} ${serverStudent.middle_name || ''}`.trim(),
+          firstName: serverStudent.first_name,
+          middleName: serverStudent.middle_name || '',
+          lastName: serverStudent.last_name,
+          studentNumber: serverStudent.student_number,
+          email: serverStudent.email,
+          course: serverStudent.course_code || updatedRecord.course,
+          program: serverStudent.course_code || updatedRecord.program,
+          yearLevel: serverStudent.year_level ? `${serverStudent.year_level}${serverStudent.year_level === 1 ? 'st' : serverStudent.year_level === 2 ? 'nd' : serverStudent.year_level === 3 ? 'rd' : 'th'} Year` : updatedRecord.yearLevel,
+          section: serverStudent.section_name || updatedRecord.section,
+          photoUrl: serverStudent.photo_url || updatedRecord.photoUrl,
+          signatureUrl: serverStudent.signature_url || updatedRecord.signatureUrl,
+        } : {})
+      };
+      setStudents(prev => prev.map(s => s.id === updatedRecord.id ? mappedRecord : s));
+      if (onShowToast) {
+        onShowToast(`Student record for ${mappedRecord.name} updated successfully.`);
+      }
+      setEditStudent(null);
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(`Failed to update student: ${err.message || err}`);
+      }
+      throw err;
     }
-    setEditStudent(null);
   };
 
   const handleDeleteConfirm = async () => {
@@ -1037,18 +1073,17 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
   const navigate = useNavigate();
   const params = useParams();
   // Pin the last known-good stats to avoid parent re-renders with stale empty data
-  // blanking the program counts (Bug 18 fix)
   const [liveStats, setLiveStats] = useState(stats || null);
   const [dbPrograms, setDbPrograms] = useState([]);
-  const pinnedCountsRef = React.useRef({});
+
+  useEffect(() => {
+    if (stats) setLiveStats(stats);
+  }, [stats]);
 
   useEffect(() => {
     statsApi.getDashboardStats().then(data => {
       if (data) {
         setLiveStats(data);
-        if (Object.keys(data.programCounts ?? {}).length > 0) {
-          pinnedCountsRef.current = data.programCounts;
-        }
       }
     }).catch(() => {});
 
@@ -1057,14 +1092,9 @@ export default function RegistrationsView({ initialProgramCode, onShowToast, sta
         setDbPrograms(data);
       }
     }).catch(() => {});
-  }, []);
+  }, [stats?.ayName, stats?.activeAcademicYear]);
 
-  // Use liveStats if available, fall back to prop — but always keep last non-empty programCounts
-  const rawProgCounts = (liveStats ?? stats)?.programCounts ?? {};
-  if (Object.keys(rawProgCounts).length > 0) {
-    pinnedCountsRef.current = rawProgCounts;
-  }
-  const progCounts = pinnedCountsRef.current;
+  const progCounts = (liveStats ?? stats)?.programCounts ?? {};
 
   const dynamicOrgs = ORGS.map(org => {
     const orgDbProgs = dbPrograms.filter(p => p.org.toUpperCase() === org.code.toUpperCase());

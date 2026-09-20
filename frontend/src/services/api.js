@@ -193,6 +193,7 @@ export const studentApi = {
     return await request('/students/register', {
       method: 'POST',
       body: JSON.stringify(payload),
+      timeout: 60000,
     });
   },
 
@@ -225,6 +226,9 @@ export const studentApi = {
       contact_strt: updatedFields.emergencyAddress || updatedFields.contact_strt,
       course_code: updatedFields.course || updatedFields.program || updatedFields.course_code,
       section_name: updatedFields.section?.replace(/^[A-Za-z-]+\s*/, '') || updatedFields.section_name,
+      year_level: typeof updatedFields.yearLevel === 'number'
+        ? updatedFields.yearLevel
+        : (parseInt(updatedFields.yearLevel, 10) || undefined),
       photo_data: (updatedFields.photoUrl?.startsWith('data:') ? updatedFields.photoUrl : null) || updatedFields.photo_data,
       signature_data: (updatedFields.signatureUrl?.startsWith('data:') ? updatedFields.signatureUrl : null) || updatedFields.signature_data,
     };
@@ -232,6 +236,7 @@ export const studentApi = {
     return await request(`/admin/students/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
+      timeout: 60000,
     });
   },
 
@@ -257,58 +262,50 @@ export const studentApi = {
     }
   },
 
-  async softDelete(id) {
+  async getRegistrationStatus() {
     try {
-      return await request(`/admin/students/${id}`, {
-        method: 'DELETE',
-      });
+      return await request('/students/registration-status');
     } catch (_) {
-      return { success: true, id, message: 'Record moved to recycle bin.' };
+      return { is_open: true };
     }
+  },
+
+  async softDelete(id) {
+    return await request(`/admin/students/${id}`, {
+      method: 'DELETE',
+    });
   },
 
   async restore(id) {
-    try {
-      return await request(`/admin/students/${id}/restore`, {
-        method: 'POST',
-      });
-    } catch (_) {
-      return { success: true, id, message: 'Record restored from recycle bin.' };
-    }
+    return await request(`/admin/students/${id}/restore`, {
+      method: 'POST',
+    });
   },
 
   async purge(id) {
-    try {
-      return await request(`/admin/students/${id}/purge`, {
-        method: 'DELETE',
-      });
-    } catch (_) {
-      return { success: true, id, message: 'Record permanently deleted.' };
-    }
+    return await request(`/admin/students/${id}/purge`, {
+      method: 'DELETE',
+    });
   },
 
   async emptyRecycleBin() {
-    try {
-      return await request('/admin/recycle-bin/empty', {
-        method: 'DELETE',
-      });
-    } catch (_) {
-      return { success: true, message: 'Recycle bin purged.' };
-    }
+    return await request('/admin/recycle-bin/empty', {
+      method: 'DELETE',
+    });
   },
 
   async uploadPhoto(id, photoDataUrl) {
     return await request(`/admin/students/${id}/photo`, {
       method: 'POST',
       body: JSON.stringify({ photo: photoDataUrl }),
-    }).catch(() => ({ success: true }));
+    });
   },
 
   async uploadSignature(id, sigDataUrl) {
     return await request(`/admin/students/${id}/signature`, {
       method: 'POST',
       body: JSON.stringify({ signature: sigDataUrl }),
-    }).catch(() => ({ success: true }));
+    });
   }
 };
 

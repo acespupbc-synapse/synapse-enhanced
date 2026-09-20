@@ -35,14 +35,13 @@ class Settings(BaseSettings):
 
     @property
     def async_database_url(self) -> str:
-        """Convert sync postgresql:// URL to async dialect (psycopg or asyncpg fallback)."""
+        """Convert sync postgresql:// URL to async dialect (asyncpg preferred for async, psycopg fallback)."""
         url = self.database_url
-        driver = "psycopg"
+        driver = "asyncpg"
         try:
-            import psycopg
-            from psycopg import pq  # noqa
-        except Exception:
-            driver = "asyncpg"
+            import asyncpg  # noqa
+        except ImportError:
+            driver = "psycopg"
 
         if url.startswith("postgresql://"):
             return url.replace("postgresql://", f"postgresql+{driver}://", 1)

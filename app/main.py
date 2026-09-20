@@ -45,12 +45,15 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+# SEC-01: allow_origin_regex removed — the previous r"^https?://.*" pattern
+# matched every origin on the internet, completely defeating the allowlist.
+# Only origins explicitly listed in ALLOWED_ORIGINS (env) are permitted.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings_cfg.allowed_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # ── Register Routers ──────────────────────────────────────────────────────────
@@ -60,35 +63,6 @@ app.include_router(students.router)
 app.include_router(programs.router)
 app.include_router(settings_router.router)
 app.include_router(export.router)
-
-# ── Health Check & Root (public) ───────────────────────────────────────────────
-@app.get("/", include_in_schema=False)
-async def root():
-    return {
-        "status": "online",
-        "service": "ACES Synapse Enhanced API",
-        "version": "2.2.0",
-        "docs": "/docs",
-        "health": "/api/health",
-    }
-
-
-@app.get("/api/health")
-async def health_check():
-    from app.core.mdb_generator import get_java_executable, is_mdb_driver_available
-    java_cmd = get_java_executable()
-    odbc_available = is_mdb_driver_available()
-    return {
-        "status": "healthy",
-        "service": "aces-synapse-enhanced",
-        "version": "2.2.0",
-        "database": "supabase-postgresql",
-        "platform": sys.platform,
-        "java_cmd": java_cmd,
-        "odbc_available": odbc_available,
-        "mdb_engine_ready": bool(odbc_available or java_cmd),
-    }
-
 
 # ── SPA Static File Hosting (production build) ────────────────────────────────
 dist_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
@@ -102,9 +76,59 @@ if os.path.exists(dist_dir):
     if os.path.exists(img_dir):
         app.mount("/img", StaticFiles(directory=img_dir), name="img")
 
+
+# ── Health Check & Root (public) ───────────────────────────────────────────────
+@app.get("/", include_in_schema=False)
+async def root():
+    index_file = os.path.join(dist_dir, "index.html")
+    if os.path.exists(dist_dir) and os.path.isfile(index_file):
+        return FileResponse(index_file)
+    return {
+        "status": "online",
+        "service": "ACES Synapse Enhanced API",
+        "version": "2.2.0",
+        "docs": "/docs",
+        "health": "/api/health",
+    }
+
+
+@app.get("/api", include_in_schema=False)
+async def api_info():
+    return {
+        "status": "online",
+        "service": "ACES Synapse Enhanced API",
+        "version": "2.2.0",
+        "docs": "/docs",
+        "health": "/api/health",
+    }
+
+
+@app.get("/api/health")
+async def health_check():
+    # Phase 1.5: Return minimal information — no stack details exposed publicly.
+    # Detailed diagnostics (java, odbc, platform) are restricted to admin endpoints.
+    from app.core.database import engine
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(__import__('sqlalchemy').text('SELECT 1'))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return {
+        "status": "healthy" if db_ok else "degraded",
+        "service": "aces-synapse-enhanced",
+        "version": "2.2.0",
+        "database": "ok" if db_ok else "unavailable",
+    }
+
+
+if os.path.exists(dist_dir):
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        file_path = os.path.join(dist_dir, full_path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return FileResponse(file_path)
+        # Phase 1.6: Resolve the real path and verify it stays within dist_dir.
+        # Prevents path traversal attacks like '../../etc/passwd'.
+        resolved = os.path.realpath(os.path.join(dist_dir, full_path))
+        dist_real = os.path.realpath(dist_dir)
+        if resolved.startswith(dist_real + os.sep) and os.path.isfile(resolved):
+            return FileResponse(resolved)
         return FileResponse(os.path.join(dist_dir, "index.html"))

@@ -29,10 +29,10 @@ export default function App() {
   const toastTimerRef = React.useRef(null);
 
   const [stats, setStats] = useState({
-    isRegistrationOpen: true,
+    isRegistrationOpen: null, // B5: null = not yet fetched; prevents premature access on mobile
     enrolledCount: 0,
     dbStatus: 'Online',
-    ayName: 'AY 2026-2027',
+    ayName: '2026-2027',
     cpuPercent: 0,
     latencyMs: 0,
     liveUsers: 1,
@@ -79,9 +79,8 @@ export default function App() {
             dbStatus: data.stats.dbStatus ?? prev.dbStatus,
             ayName: data.stats.activeAcademicYear ?? prev.ayName,
             recycleBinCount: data.stats.recycleBinCount ?? 0,
-            // Only overwrite programCounts if the response is non-empty to prevent
-            // a transient stale cache response from blanking real data (Bug 18)
-            programCounts: Object.keys(data.stats.programCounts ?? {}).length > 0
+            // Always update programCounts from data.stats so different academic years reflect accurate counts
+            programCounts: data.stats.programCounts !== undefined
               ? data.stats.programCounts
               : prev.programCounts,
             cpuPercent: data.stats.cpuPercent ?? 0,
@@ -107,9 +106,19 @@ export default function App() {
             }))
           );
         }
+      } else {
+        // Public visitor: fetch registration status from public endpoint
+        const pubStatus = await studentApi.getRegistrationStatus();
+        setStats((prev) => ({
+          ...prev,
+          isRegistrationOpen: pubStatus?.is_open ?? true,
+        }));
       }
     } catch (_) {
-      // Graceful fallback
+      setStats((prev) => ({
+        ...prev,
+        isRegistrationOpen: prev.isRegistrationOpen ?? true,
+      }));
     } finally {
       setIsDashboardLoading(false);
     }
@@ -161,7 +170,7 @@ export default function App() {
     };
   }, []);
 
-  // Optimized real-time polling: every 4 seconds when tab is visible, plus instant wakeup on focus
+  // Phase 3.4: Real-time polling every 15 seconds when tab is visible, plus instant wakeup on focus
   useEffect(() => {
     fetchFullDashboard();
     if (!isAuthenticated) return;
@@ -170,7 +179,7 @@ export default function App() {
       if (document.visibilityState === 'visible') {
         fetchFullDashboard();
       }
-    }, 4000);
+    }, 15000);
 
     const handleFocusOrVisible = () => {
       if (document.visibilityState === 'visible') {
@@ -287,7 +296,12 @@ export default function App() {
         <Route
           path="/register"
           element={
-            !stats.isRegistrationOpen ? (
+            // B5: null = API not yet resolved; show spinner to block premature form access
+            stats.isRegistrationOpen === null ? (
+              <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+                <div className="loading-spinner" />
+              </div>
+            ) : !stats.isRegistrationOpen ? (
               <RegistrationClosedView
                 academicYear={stats.ayName}
                 onBack={() => navigate('/home')}
@@ -338,6 +352,7 @@ export default function App() {
                             else navigate(`/${tab}`);
                           }}
                           onShowToast={showToast}
+                          onRefreshStats={fetchFullDashboard}
                         />
                       }
                     />
@@ -378,6 +393,7 @@ export default function App() {
                           onToggleRegistration={handleToggleRegistration}
                           onShowToast={showToast}
                           onRefreshStats={fetchFullDashboard}
+                          onLogout={handleLogout}
                         />
                       }
                     />
@@ -398,7 +414,7 @@ export default function App() {
         <div
           style={{
             position: 'fixed',
-            bottom: 24,
+            top: 24,
             right: 24,
             background: 'var(--bg-card-nested, #1e293b)',
             color: 'var(--text-primary, #ffffff)',

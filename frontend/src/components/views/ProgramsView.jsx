@@ -159,9 +159,10 @@ function EditSectionModal({ sectionData, programs, onClose, onUpdated, onDeleted
     setErrorMsg('');
     setIsDeleting(true);
     try {
-      if (section?.id) {
-        await programsApi.deleteSection(section.id);
+      if (!section?.id) {
+        throw new Error('Cannot delete section: Section ID is missing. Please refresh.');
       }
+      await programsApi.deleteSection(section.id);
       onDeleted();
       onClose();
     } catch (err) {
@@ -570,24 +571,35 @@ export default function ProgramsView() {
                   </td>
                   <td>
                     <div className="prog-sections-badge-group">
-                      {(prog.sections_detail && prog.sections_detail.length > 0
-                        ? prog.sections_detail
-                        : (prog.sections && prog.sections.length > 0 ? prog.sections : ['1-1']).map(s => ({
-                            id: null,
-                            name: typeof s === 'string' ? s : s.name,
-                            year_level: typeof s === 'object' && s.year_level ? s.year_level : (parseInt((typeof s === 'string' ? s : s.name)[0]) || 1),
-                          }))
-                      ).map(secItem => (
-                        <button
-                          key={secItem.id || secItem.name}
-                          type="button"
-                          className="prog-sec-badge-pill clickable"
-                          title={`Click to edit section ${secItem.name}`}
-                          onClick={() => setEditSectionTarget({ section: secItem, program: prog })}
-                        >
-                          {secItem.name}
-                        </button>
-                      ))}
+                      {(() => {
+                        const secList = (prog.sections_detail && prog.sections_detail.length > 0)
+                          ? prog.sections_detail
+                          : (prog.sections && prog.sections.length > 0)
+                            ? prog.sections.map(s => ({
+                                id: null,
+                                name: typeof s === 'string' ? s : s.name,
+                                year_level: typeof s === 'object' && s.year_level ? s.year_level : (parseInt((typeof s === 'string' ? s : s.name)[0]) || 1),
+                              }))
+                            : [];
+                        if (secList.length === 0) {
+                          return (
+                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.78rem', fontStyle: 'italic' }}>
+                              No sections
+                            </span>
+                          );
+                        }
+                        return secList.map(secItem => (
+                          <button
+                            key={secItem.id || secItem.name}
+                            type="button"
+                            className="prog-sec-badge-pill clickable"
+                            title={`Click to edit section ${secItem.name}`}
+                            onClick={() => setEditSectionTarget({ section: secItem, program: prog })}
+                          >
+                            {secItem.name}
+                          </button>
+                        ));
+                      })()}
                     </div>
                   </td>
                   <td>

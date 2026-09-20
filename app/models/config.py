@@ -61,11 +61,13 @@ class Section(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     course_id = Column(UUID(as_uuid=True), ForeignKey("courses.id"), nullable=False)
+    academic_year_id = Column(UUID(as_uuid=True), ForeignKey("academic_years.id"), nullable=True, index=True)  # None = legacy/shared
     year_level = Column(Integer, nullable=False)  # 1, 2, 3, 4
     name = Column(String(20), nullable=False)  # e.g. "1-1"
     capacity = Column(Integer, default=50, nullable=False)
 
     course = relationship("Course", back_populates="sections", lazy="select")
+    academic_year = relationship("AcademicYear", lazy="select")
     students = relationship("Student", back_populates="section", lazy="select")
 
     def __repr__(self):

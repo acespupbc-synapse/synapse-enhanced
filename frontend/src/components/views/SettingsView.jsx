@@ -15,15 +15,15 @@ import {
   Plus,
   X,
   FileArchive,
-  CaretDown
+  CaretDown,
+  SignOut
 } from '@phosphor-icons/react';
 import { studentApi, settingsApi, authApi, exportApi } from '../../services/api';
 import Footer from '../common/Footer';
 import './SettingsView.css';
 
-export default function SettingsView({ stats, onToggleRegistration, onShowToast, onRefreshStats }) {
+export default function SettingsView({ stats, onToggleRegistration, onShowToast, onRefreshStats, onLogout }) {
   const [activeCategory, setActiveCategory] = useState('portal');
-  const [isSaving, setIsSaving] = useState(false);
 
   // Modals
   const [showDangerModal, setShowDangerModal] = useState(false);
@@ -69,8 +69,7 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
 
   const [portalConfig, setPortalConfig] = useState({
     isOpen: stats?.isRegistrationOpen ?? true,
-    academicYear: stats?.ayName?.replace(/^AY\s*/i, '') || '2026-2027',
-    allowedYearLevels: '1st Year Only'
+    academicYear: stats?.ayName?.replace(/^AY\s*/i, '') || '2026-2027'
   });
 
   useEffect(() => {
@@ -79,20 +78,9 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
     }
   }, [stats?.isRegistrationOpen]);
 
-  // ── Registration Validation Rules State (PUP Biñan) ───────────────────────
-  const [ruleConfig, setRuleConfig] = useState({
-    idPrefixMask: 'YYYY-XXXXX-BN-0',
-    preventDuplicates: true,
-    autoUppercaseNames: true,
-    requirePhotoUpload: true
-  });
-
   // ── Security & Admin State ────────────────────────────────────────────────
   const [securityConfig, setSecurityConfig] = useState({
     adminUsername: 'admin',
-    adminEmail: 'acesorganization2022@gmail.com',
-    sessionTimeoutMins: '30',
-    enableAuditLog: true,
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
@@ -103,13 +91,18 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
   // ── System Diagnostics State ──────────────────────────────────────────────
   const rawApiUrl = (import.meta.env.VITE_API_URL || 'https://synapse-enhanced.onrender.com').replace(/\/+$/, '');
   const [systemMetrics, setSystemMetrics] = useState({
-    dbEngine: 'PostgreSQL (Supabase Pooler) + SQLAlchemy 2.0 (Canonical Schema)',
+    dbEngine: 'PostgreSQL 15+ (Supabase Pooler) + SQLAlchemy 2.0 Async',
     dbFile: 'PostgreSQL aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres',
     alembicRevision: '001_canonical_postgresql_schema',
     apiEndpoint: `${rawApiUrl}/api`,
     apiStatus: 'Healthy (Online)',
-    activeSessions: 1,
-    storageUsed: `${stats?.storageUsedMb || 0} MB / 500 MB`
+    activeStudents: stats?.totalStudents || 0,
+    recycleBinCount: stats?.recycleBinCount || 0,
+    totalPhotos: stats?.totalPhotos || 0,
+    totalSignatures: stats?.totalSignatures || 0,
+    supabaseStorageMb: 10.81,
+    r2StorageMb: 5.98,
+    r2TotalObjects: 39,
   });
 
   useEffect(() => {
@@ -121,34 +114,17 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
           dbFile: diag.dbHost || diag.db_host || prev.dbFile,
           alembicRevision: diag.alembicRevision || diag.alembic_revision || prev.alembicRevision,
           apiStatus: diag.apiStatus || (diag.status === 'ok' ? 'Healthy (Online)' : prev.apiStatus),
-          storageUsed: diag.storage_used_mb ? `${diag.storage_used_mb} MB / 500 MB` : prev.storageUsed
+          activeStudents: diag.activeStudents ?? diag.totalRegistered ?? prev.activeStudents,
+          recycleBinCount: diag.recycleBinCount ?? prev.recycleBinCount,
+          totalPhotos: diag.totalPhotos ?? prev.totalPhotos,
+          totalSignatures: diag.totalSignatures ?? prev.totalSignatures,
+          supabaseStorageMb: diag.supabaseStorageMb ?? prev.supabaseStorageMb,
+          r2StorageMb: diag.r2StorageMb ?? prev.r2StorageMb,
+          r2TotalObjects: diag.r2TotalObjects ?? prev.r2TotalObjects,
         }));
       }
     }).catch(() => {});
   }, []);
-
-  // Handle saving configurations
-  const handleSaveSettings = async () => {
-    setIsSaving(true);
-    try {
-      await settingsApi.updateSettings({
-        active_ay: portalConfig.academicYear,
-        is_registration_open: portalConfig.isOpen,
-        allowed_year_levels: portalConfig.allowedYearLevels,
-        require_photo: ruleConfig.requirePhotoUpload,
-        admin_email: securityConfig.adminEmail,
-      });
-      if (onShowToast) {
-        onShowToast('Settings configuration saved successfully.');
-      }
-    } catch (err) {
-      if (onShowToast) {
-        onShowToast(`Failed to save settings: ${err.message}`);
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   // Open the registration toggle auth modal
   const handleRequestTogglePortal = () => {
@@ -300,7 +276,6 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
     const backupData = {
       timestamp: new Date().toISOString(),
       portalConfig,
-      ruleConfig,
       systemMetrics
     };
 
@@ -339,27 +314,6 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
           <p className="settings-page-subtitle">
             Configure registration availability, academic year scope, PUP Biñan rules, and system security.
           </p>
-        </div>
-
-        <div className="settings-header-actions">
-          <button
-            type="button"
-            className="btn-save-settings"
-            onClick={handleSaveSettings}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <>
-                <ArrowClockwise size={16} className="spin" />
-                <span>Saving…</span>
-              </>
-            ) : (
-              <>
-                <FloppyDisk size={16} weight="bold" />
-                <span>Save Changes</span>
-              </>
-            )}
-          </button>
         </div>
       </div>
 
@@ -402,6 +356,18 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
             <Database size={18} weight={activeCategory === 'system' ? 'fill' : 'regular'} />
             <span>Database &amp; Engine</span>
           </button>
+
+          <div className="settings-nav-logout-spacer" />
+
+          <button
+            type="button"
+            className="settings-nav-item settings-nav-logout"
+            onClick={onLogout || (() => { localStorage.removeItem('synapse_auth_token'); window.location.href = '/login'; })}
+            title="Log out of administrative session"
+          >
+            <SignOut size={18} weight="bold" />
+            <span>Log Out</span>
+          </button>
         </aside>
 
         {/* Dynamic Category Content */}
@@ -418,7 +384,6 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
                       Control whether students can submit registrations through the public registration wizard.
                     </p>
                   </div>
-                  
                 </div>
 
                 <div className="settings-toggle-row">
@@ -450,77 +415,62 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
 
                 <div className="settings-divider" />
 
-                <div className="settings-grid-2">
-                  <div className="settings-field">
-                    <label className="settings-label">
-                      Academic Year
-                    </label>
-                    <div className="settings-custom-dropdown-wrap" ref={ayDropdownRef}>
-                      <button
-                        type="button"
-                        className="settings-custom-dropdown-btn"
-                        onClick={() => setIsAYDropdownOpen(prev => !prev)}
-                        aria-expanded={isAYDropdownOpen}
-                      >
-                        <span>{portalConfig.academicYear}</span>
-                        <CaretDown size={14} className={`dropdown-caret ${isAYDropdownOpen ? 'rotated' : ''}`} />
-                      </button>
-
-                      {isAYDropdownOpen && (
-                        <div className="settings-custom-dropdown-menu">
-                          <div className="settings-dropdown-items-list">
-                            {academicYears.map(ay => (
-                              <button
-                                key={ay}
-                                type="button"
-                                className={`settings-dropdown-item ${portalConfig.academicYear === ay ? 'active' : ''}`}
-                                onClick={() => {
-                                  if (ay !== portalConfig.academicYear) {
-                                    setPendingAY(ay);
-                                    setShowAYWarningModal(true);
-                                  }
-                                  setIsAYDropdownOpen(false);
-                                }}
-                              >
-                                <span>{ay}</span>
-                                {portalConfig.academicYear === ay && (
-                                  <CheckCircle size={14} weight="bold" color="#FFFFFF" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-
-                          <div className="settings-dropdown-divider" />
-
-                          <button
-                            type="button"
-                            className="settings-dropdown-add-btn"
-                            onClick={() => {
-                              setIsAYDropdownOpen(false);
-                              setNewAYInput('');
-                              setNewAYError('');
-                              setShowAddAYModal(true);
-                            }}
-                          >
-                            <Plus size={14} weight="bold" />
-                            <span>Add Academic Year</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="settings-field">
-                    <label className="settings-label">Target Registration Audience</label>
-                    <select
-                      className="settings-select"
-                      value={portalConfig.allowedYearLevels}
-                      onChange={e => setPortalConfig(p => ({ ...p, allowedYearLevels: e.target.value }))}
+                <div className="settings-field" style={{ maxWidth: 360 }}>
+                  <label className="settings-label">
+                    Active Academic Year Scope
+                  </label>
+                  <div className="settings-custom-dropdown-wrap" ref={ayDropdownRef}>
+                    <button
+                      type="button"
+                      className="settings-custom-dropdown-btn"
+                      onClick={() => setIsAYDropdownOpen(prev => !prev)}
+                      aria-expanded={isAYDropdownOpen}
                     >
-                      <option value="1st Year Only">Incoming 1st Year Freshmen Only</option>
-                      <option value="All Years">All Year Levels (1st, 2nd, 3rd, 4th Year)</option>
-                      <option value="Transferees">Transferees &amp; Shifters</option>
-                    </select>
+                      <span>{portalConfig.academicYear}</span>
+                      <CaretDown size={14} className={`dropdown-caret ${isAYDropdownOpen ? 'rotated' : ''}`} />
+                    </button>
+
+                    {isAYDropdownOpen && (
+                      <div className="settings-custom-dropdown-menu">
+                        <div className="settings-dropdown-items-list">
+                          {academicYears.map(ay => (
+                            <button
+                              key={ay}
+                              type="button"
+                              className={`settings-dropdown-item ${portalConfig.academicYear === ay ? 'active' : ''}`}
+                              onClick={() => {
+                                if (ay !== portalConfig.academicYear) {
+                                  setPendingAY(ay);
+                                  setShowAYWarningModal(true);
+                                }
+                                setIsAYDropdownOpen(false);
+                              }}
+                            >
+                              <span>{ay}</span>
+                              {portalConfig.academicYear === ay && (
+                                <CheckCircle size={14} weight="bold" color="#FFFFFF" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="settings-dropdown-divider" />
+
+                        <button
+                          type="button"
+                          className="settings-dropdown-add-btn"
+                          onClick={() => {
+                            setIsAYDropdownOpen(false);
+                            setNewAYInput('');
+                            setNewAYError('');
+                            setShowAddAYModal(true);
+                          }}
+                        >
+                          <Plus size={14} weight="bold" />
+                          <span>Add Academic Year</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -534,61 +484,53 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
                 <div className="settings-card-header">
                   <div>
                     <span className="settings-card-kicker">DATA INTEGRITY &amp; VALIDATION</span>
-                    <h2 className="settings-card-title">PUP Biñan Campus Student Rules</h2>
+                    <h2 className="settings-card-title">PUP Biñan Campus Student Policies</h2>
                     <p className="settings-card-desc">
-                      Enforce university format masks, duplicate checks, and authoritative validation for PUP Biñan.
+                      Authoritative system policies, input format masks, and database integrity rules enforced across the platform.
                     </p>
                   </div>
                 </div>
 
-                <div className="settings-grid-1">
-                  <div className="settings-field">
-                    <label className="settings-label">
-                      Student ID Format Mask
-                     
-                    </label>
-                    <input
-                      type="text"
-                      className="settings-input"
-                      value={ruleConfig.idPrefixMask}
-                      onChange={e => setRuleConfig(r => ({ ...r, idPrefixMask: e.target.value }))}
-                      placeholder="YYYY-XXXXX-BN-0"
-                    />
+                <div className="policy-list">
+                  <div className="policy-card">
+                    <div className="policy-header">
+                      <span className="policy-title">Student Number Format Mask</span>
+                      <span className="policy-badge">Enforced &amp; Auto-Formatted</span>
+                    </div>
+                    <p className="policy-desc">
+                      All student registration entries must conform to the PUP Biñan campus mask: <code>YYYY-NNNNN-BN-0</code>. Hyphens are dynamically placed in real-time during data entry.
+                    </p>
                   </div>
-                </div>
 
-                <div className="settings-toggle-row">
-                  <div className="toggle-info">
-                    <span className="toggle-title">Block Duplicate Student Numbers</span>
-                    <span className="toggle-subtitle">
-                      Reject registrations if the Student Number or Email is already registered in the active academic year.
-                    </span>
+                  <div className="policy-card">
+                    <div className="policy-header">
+                      <span className="policy-title">Duplicate Registration Prevention</span>
+                      <span className="policy-badge">Active in Database</span>
+                    </div>
+                    <p className="policy-desc">
+                      PostgreSQL unique constraints reject duplicate Student Numbers and Student Emails within the active academic year to prevent duplicate submissions.
+                    </p>
                   </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={ruleConfig.preventDuplicates}
-                      onChange={e => setRuleConfig(r => ({ ...r, preventDuplicates: e.target.checked }))}
-                    />
-                    <span className="slider" />
-                  </label>
-                </div>
 
-                <div className="settings-toggle-row">
-                  <div className="toggle-info">
-                    <span className="toggle-title">Force Uppercase on Names &amp; Addresses</span>
-                    <span className="toggle-subtitle">
-                      Automatically convert student names, sections, and street addresses to uppercase format.
-                    </span>
+                  <div className="policy-card">
+                    <div className="policy-header">
+                      <span className="policy-title">Authoritative Uppercase Conversion</span>
+                      <span className="policy-badge">System Standard</span>
+                    </div>
+                    <p className="policy-desc">
+                      Student names, section codes, and residential addresses are normalized to uppercase for consistent academic reporting and Microsoft Access MDB export compatibility.
+                    </p>
                   </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={ruleConfig.autoUppercaseNames}
-                      onChange={e => setRuleConfig(r => ({ ...r, autoUppercaseNames: e.target.checked }))}
-                    />
-                    <span className="slider" />
-                  </label>
+
+                  <div className="policy-card">
+                    <div className="policy-header">
+                      <span className="policy-title">Media Storage &amp; Validation</span>
+                      <span className="policy-badge">1500×1500 &amp; 2000×1200</span>
+                    </div>
+                    <p className="policy-desc">
+                      Student 1:1 ID photos and white-background signatures are validated server-side using Pillow and securely preserved as private objects in Cloudflare R2 bucket storage.
+                    </p>
+                  </div>
                 </div>
               </section>
             </>
@@ -597,29 +539,6 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
           {/* ── Category: Security & Admin ─────────────────────────────────── */}
           {activeCategory === 'security' && (
             <>
-              <section className="settings-card">
-                <div className="settings-card-header">
-                  <div>
-                    <span className="settings-card-kicker">ADMINISTRATOR CONTACT</span>
-                    <h2 className="settings-card-title">Official Notification Email</h2>
-                    <p className="settings-card-desc">
-                      Receives system alert notices and is displayed on student support notices.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="settings-field">
-                  <label className="settings-label">Admin Notification Email</label>
-                  <input
-                    type="email"
-                    className="settings-input"
-                    value={securityConfig.adminEmail}
-                    onChange={e => setSecurityConfig(s => ({ ...s, adminEmail: e.target.value }))}
-                    placeholder="acesorganization2022@gmail.com"
-                  />
-                </div>
-              </section>
-
               <section className="settings-card">
                 <div className="settings-card-header">
                   <div>
@@ -682,6 +601,30 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
                   </div>
                 </form>
               </section>
+
+              <section className="settings-card">
+                <div className="settings-card-header">
+                  <div>
+                    <span className="settings-card-kicker">ADMIN SESSION</span>
+                    <h2 className="settings-card-title">Session Management</h2>
+                    <p className="settings-card-desc">
+                      Currently logged in as <strong>{securityConfig.adminUsername}</strong>. Sign out to securely terminate your administrative session on this device.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={onLogout || (() => { localStorage.removeItem('synapse_auth_token'); window.location.href = '/login'; })}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <SignOut size={16} weight="bold" />
+                    <span>Log Out of Admin Panel</span>
+                  </button>
+                </div>
+              </section>
             </>
           )}
 
@@ -705,16 +648,40 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
                     <span className="meta-value">PUP Biñan Campus</span>
                   </div>
                   <div className="meta-row">
-                    <span className="meta-label">Database Engine:</span>
-                    <span className="meta-value">{systemMetrics.dbEngine}</span>
-                  </div>
-                  <div className="meta-row">
                     <span className="meta-label">Active Academic Year:</span>
                     <span className="meta-value">AY {portalConfig.academicYear}</span>
                   </div>
                   <div className="meta-row">
-                    <span className="meta-label">Local Storage Space:</span>
-                    <span className="meta-value">{systemMetrics.storageUsed}</span>
+                    <span className="meta-label">Database Engine:</span>
+                    <span className="meta-value">{systemMetrics.dbEngine}</span>
+                  </div>
+                  <div className="meta-row">
+                    <span className="meta-label">Database Host:</span>
+                    <span className="meta-value">{systemMetrics.dbFile}</span>
+                  </div>
+                  <div className="meta-row">
+                    <span className="meta-label">Supabase Database Storage:</span>
+                    <span className="meta-value">{systemMetrics.supabaseStorageMb} MB / 500 MB</span>
+                  </div>
+                  <div className="meta-row">
+                    <span className="meta-label">Cloudflare R2 Storage:</span>
+                    <span className="meta-value">{systemMetrics.r2StorageMb} MB ({systemMetrics.r2TotalObjects} files) / 10 GB</span>
+                  </div>
+                  <div className="meta-row">
+                    <span className="meta-label">Active Student Records:</span>
+                    <span className="meta-value">{systemMetrics.activeStudents} active {systemMetrics.recycleBinCount > 0 ? `(${systemMetrics.recycleBinCount} in Recycle Bin)` : ''}</span>
+                  </div>
+                  <div className="meta-row">
+                    <span className="meta-label">Media Archives:</span>
+                    <span className="meta-value">{systemMetrics.totalPhotos} photos, {systemMetrics.totalSignatures} signatures</span>
+                  </div>
+                  <div className="meta-row">
+                    <span className="meta-label">Schema Revision:</span>
+                    <span className="meta-value">{systemMetrics.alembicRevision}</span>
+                  </div>
+                  <div className="meta-row">
+                    <span className="meta-label">API Status:</span>
+                    <span className="meta-value" style={{ color: '#34D399' }}>● {systemMetrics.apiStatus}</span>
                   </div>
                 </div>
 

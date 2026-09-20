@@ -203,6 +203,7 @@ export default function BentoGrid({
   onNavigateTab,
   onShowToast,
   isLoading = false,
+  onRefreshStats,
 }) {
   if (isLoading) {
     return <BentoGridSkeleton />;
@@ -270,7 +271,15 @@ export default function BentoGrid({
     storageMaxMb: 10000,
     usedFiles: 0,
   };
-  const liveFeed = propFeed || internalFeed;
+  // ── Live Feed (local state for immediate update) ─────────────────────────
+  const [feedItems, setFeedItems] = useState(propFeed || []);
+
+  // Sync feedItems whenever propFeed changes from parent (polling)
+  useEffect(() => {
+    if (propFeed) setFeedItems(propFeed);
+  }, [propFeed]);
+
+  const liveFeed = propFeed ? feedItems : internalFeed;
 
   const cpu = stats?.cpuPercent != null ? `${stats.cpuPercent}%` : '0%';
   const apiHealth = stats?.latencyMs != null ? `${stats.latencyMs} ms` : '—';
@@ -699,32 +708,23 @@ export default function BentoGrid({
           onSave={async (updated) => {
             try {
               await studentApi.update(updated.id, updated);
+              // Immediately update the feed item avatar with the new photoUrl (no page refresh needed)
+              setFeedItems((prev) =>
+                prev.map((item) =>
+                  item.id === updated.id ? { ...item, photoUrl: updated.photoUrl } : item
+                )
+              );
               if (onShowToast) {
                 onShowToast(`Student record for ${updated.name} successfully updated!`);
               }
+              // Refresh parent dashboard stats so everything stays in sync
+              if (onRefreshStats) onRefreshStats();
             } catch (err) {
               if (onShowToast) {
                 onShowToast(`Failed to update student: ${err.message}`);
               }
             }
             setEditingStudent(null);
-            statsApi.getLiveFeed().then((data) => {
-              if (Array.isArray(data)) {
-                setInternalFeed(
-                  data.map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    course: item.course,
-                    section: `${item.course || ''} ${item.section || ''}`.trim() || '—',
-                    studentNumber: item.student_number || '',
-                    photoUrl: item.photo_url || null,
-                    time: item.time
-                      ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      : 'Recently',
-                  }))
-                );
-              }
-            }).catch(() => {});
           }}
           onShowToast={onShowToast}
         />

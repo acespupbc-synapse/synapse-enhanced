@@ -1,3 +1,4 @@
+import asyncio
 import time
 import urllib.request
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,14 @@ from app.models.config import AcademicYear, Course, SystemSettings
 from app.routers.students import get_live_visitor_count
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+# Phase 1.1: Allowlist for the media-proxy endpoint — only R2 presigned URLs allowed.
+# This prevents SSRF attacks where an authenticated admin could pivot to internal services.
+from app.core.config import get_settings as _get_settings_for_proxy
+_proxy_settings = _get_settings_for_proxy()
+ALLOWED_PROXY_PREFIXES: tuple[str, ...] = (
+    f"https://{_proxy_settings.cf_account_id}.r2.cloudflarestorage.com/",
+)
 
 _db_size_cache = {"mb": 10.52, "ts": 0}
 
@@ -44,8 +53,8 @@ _r2_size_cache = {"mb": 1.08, "files": 6, "ts": 0}
 def _get_r2_storage_info(photo_count: int = 0, sig_count: int = 0) -> tuple[float, int]:
     """
     Get accurate Cloudflare R2 storage usage in MB and file count.
-    Queries R2 list_objects_v2 directly, cached for 60 seconds.
-    Falls back gracefully to tracked photo/sig count if R2 call fails.
+    Uses paginated list_objects_v2 (Phase 2.3) to handle buckets > 1000 objects.
+    Cached for 60 seconds. Falls back gracefully if R2 call fails.
     """
     now = time.time()
     if now - _r2_size_cache["ts"] > 60:
@@ -54,11 +63,16 @@ def _get_r2_storage_info(photo_count: int = 0, sig_count: int = 0) -> tuple[floa
             from app.core.config import get_settings
             settings_cfg = get_settings()
             client = _get_client()
-            res = client.list_objects_v2(Bucket=settings_cfg.cf_r2_bucket_name)
-            contents = res.get("Contents", [])
-            total_bytes = sum(o.get("Size", 0) for o in contents)
+            # Phase 2.3: Paginate to handle buckets with > 1000 objects
+            paginator = client.get_paginator('list_objects_v2')
+            total_bytes = 0
+            total_files = 0
+            for page in paginator.paginate(Bucket=settings_cfg.cf_r2_bucket_name):
+                for obj in page.get('Contents', []):
+                    total_bytes += obj.get('Size', 0)
+                    total_files += 1
             _r2_size_cache["mb"] = round(total_bytes / (1024 * 1024), 2)
-            _r2_size_cache["files"] = len(contents)
+            _r2_size_cache["files"] = total_files
             _r2_size_cache["ts"] = now
         except Exception as e:
             print(f"[WARN] Failed to fetch R2 bucket metrics: {e}")
@@ -70,18 +84,28 @@ def _get_r2_storage_info(photo_count: int = 0, sig_count: int = 0) -> tuple[floa
     return _r2_size_cache["mb"], _r2_size_cache["files"]
 
 
+try:
+    import psutil
+    psutil.cpu_percent(interval=None)  # Prime counter once at load
+except Exception:
+    psutil = None
+
+
 def _get_cpu_percent() -> float:
+    # Non-blocking instantaneous differential reading (0ms latency, zero thread sleep)
     try:
-        import psutil
-        cpu = round(psutil.cpu_percent(interval=None), 1)
-        if cpu <= 0:
-            cpu = round(psutil.Process().cpu_percent() / (psutil.cpu_count() or 1), 1) or 8.5
-        return cpu
+        if psutil:
+            val = psutil.cpu_percent(interval=None)
+            if val > 0.0:
+                return round(val, 1)
+        return 12.5
     except Exception:
         return 12.5
 
 
+# Phase 3.4: Extend cache TTL from 2s to 10s to reduce DB load during 15s polling.
 _dashboard_cache = {"data": None, "ts": 0}
+_DASHBOARD_CACHE_TTL = 10.0  # seconds
 
 
 @router.get("/stats")
@@ -89,20 +113,11 @@ async def get_stats(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
-    counts_res = await db.execute(
-        select(
-            func.count(Student.id).filter(Student.deleted_at.is_(None)),
-            func.count(Student.id).filter(Student.deleted_at.is_not(None)),
-        )
-    )
-    enrolled_count, recycle_count = counts_res.one()
-    enrolled_count = enrolled_count or 0
-    recycle_count = recycle_count or 0
-
     settings_result = await db.execute(
         select(SystemSettings).options(selectinload(SystemSettings.active_ay)).limit(1)
     )
     system_settings = settings_result.scalar_one_or_none()
+    active_ay_id = system_settings.active_ay_id if system_settings else None
 
     active_ay_name = "AY 2026-2027"
     registration_open = True
@@ -111,10 +126,23 @@ async def get_stats(
         if system_settings.active_ay:
             active_ay_name = f"AY {system_settings.active_ay.name}"
 
+    # Filter all counts by active AY
+    ay_filter = (Student.academic_year_id == active_ay_id) if active_ay_id else True
+
+    counts_res = await db.execute(
+        select(
+            func.count(Student.id).filter(Student.deleted_at.is_(None), ay_filter),
+            func.count(Student.id).filter(Student.deleted_at.is_not(None)),
+        )
+    )
+    enrolled_count, recycle_count = counts_res.one()
+    enrolled_count = enrolled_count or 0
+    recycle_count = recycle_count or 0
+
     prog_res = await db.execute(
         select(Course.code, func.count(Student.id))
         .join(Student, Student.course_id == Course.id)
-        .where(Student.deleted_at.is_(None))
+        .where(Student.deleted_at.is_(None), ay_filter)
         .group_by(Course.code)
     )
     prog_counts = {row[0]: row[1] for row in prog_res.all()}
@@ -185,29 +213,17 @@ async def get_full_dashboard(
     _admin: AdminUser = Depends(get_current_admin),
 ):
     now = time.time()
-    if _dashboard_cache["data"] and (now - _dashboard_cache["ts"] < 2.0):
+    if _dashboard_cache["data"] and (now - _dashboard_cache["ts"] < _DASHBOARD_CACHE_TTL):
         cached = _dashboard_cache["data"].copy()
         if "stats" in cached:
             cached["stats"] = {**cached["stats"], "liveUsers": get_live_visitor_count()}
         return cached
 
-    # Consolidated counts query: enrolled, recycle bin, photos, signatures in 1 single roundtrip
-    counts_res = await db.execute(
-        select(
-            func.count(Student.id).filter(Student.deleted_at.is_(None)),
-            func.count(Student.id).filter(Student.deleted_at.is_not(None)),
-            func.count(Student.photo_r2_key).filter(Student.deleted_at.is_(None)),
-            func.count(Student.signature_r2_key).filter(Student.deleted_at.is_(None)),
-        )
-    )
-    enrolled_count, recycle_count, photo_count, sig_count = counts_res.one()
-    enrolled_count = enrolled_count or 0
-    recycle_count = recycle_count or 0
-
     settings_result = await db.execute(
         select(SystemSettings).options(selectinload(SystemSettings.active_ay)).limit(1)
     )
     system_settings = settings_result.scalar_one_or_none()
+    active_ay_id = system_settings.active_ay_id if system_settings else None
     active_ay_name = "AY 2026-2027"
     registration_open = True
     if system_settings:
@@ -215,10 +231,25 @@ async def get_full_dashboard(
         if system_settings.active_ay:
             active_ay_name = f"AY {system_settings.active_ay.name}"
 
+    # Filter all student counts and lists by active AY
+    ay_filter = (Student.academic_year_id == active_ay_id) if active_ay_id else True
+
+    counts_res = await db.execute(
+        select(
+            func.count(Student.id).filter(Student.deleted_at.is_(None), ay_filter),
+            func.count(Student.id).filter(Student.deleted_at.is_not(None)),
+            func.count(Student.photo_r2_key).filter(Student.deleted_at.is_(None), ay_filter),
+            func.count(Student.signature_r2_key).filter(Student.deleted_at.is_(None), ay_filter),
+        )
+    )
+    enrolled_count, recycle_count, photo_count, sig_count = counts_res.one()
+    enrolled_count = enrolled_count or 0
+    recycle_count = recycle_count or 0
+
     prog_res = await db.execute(
         select(Course.code, func.count(Student.id))
         .join(Student, Student.course_id == Course.id)
-        .where(Student.deleted_at.is_(None))
+        .where(Student.deleted_at.is_(None), ay_filter)
         .group_by(Course.code)
     )
     prog_counts = {row[0]: row[1] for row in prog_res.all()}
@@ -282,10 +313,16 @@ async def get_live_feed(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
+    # Resolve active AY for filtering
+    settings_res = await db.execute(select(SystemSettings).limit(1))
+    sys_settings = settings_res.scalar_one_or_none()
+    active_ay_id = sys_settings.active_ay_id if sys_settings else None
+    ay_filter = (Student.academic_year_id == active_ay_id) if active_ay_id else True
+
     result = await db.execute(
         select(Student)
         .options(selectinload(Student.course), selectinload(Student.section))
-        .where(Student.deleted_at.is_(None))
+        .where(Student.deleted_at.is_(None), ay_filter)
         .order_by(
             func.coalesce(Student.updated_at, Student.created_at).desc(),
             Student.created_at.desc()
@@ -317,19 +354,35 @@ async def media_proxy(
     url: str,
     _admin: AdminUser = Depends(get_current_admin),
 ):
-    """Proxy private R2 media with open CORS to avoid client-side canvas taint during cropping."""
-    try:
+    """Proxy private R2 media for canvas-taint-free cropping in the admin panel.
+
+    Phase 1.1 (SSRF fix): Only R2 presigned URLs matching the configured account
+    are allowed. Any other URL returns 400.
+    Phase 3.5: Blocking urllib.request is now run in a thread pool to avoid
+    blocking the async event loop.
+    """
+    # SSRF allowlist check
+    if not any(url.startswith(prefix) for prefix in ALLOWED_PROXY_PREFIXES):
+        raise HTTPException(
+            status_code=400,
+            detail="URL not allowed. Only presigned R2 URLs for this account are accepted."
+        )
+
+    def _fetch() -> tuple[bytes, str]:
         req = urllib.request.Request(url, headers={"User-Agent": "ACES-Synapse/2.2"})
         with urllib.request.urlopen(req, timeout=10) as resp:
-            content = resp.read()
-            content_type = resp.headers.get("Content-Type", "image/jpeg")
-            return Response(
-                content=content,
-                media_type=content_type,
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "public, max-age=3600",
-                },
-            )
+            return resp.read(), resp.headers.get("Content-Type", "image/jpeg")
+
+    try:
+        # Phase 3.5: Off-load blocking I/O to thread pool
+        content, content_type = await asyncio.to_thread(_fetch)
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600",
+            },
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Proxy error: {str(e)}")

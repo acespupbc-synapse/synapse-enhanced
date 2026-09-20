@@ -15,12 +15,17 @@ Admin (JWT required):
   POST   /api/admin/students/{id}/photo
   POST   /api/admin/students/{id}/signature
 """
+import asyncio
+from collections import defaultdict
 from datetime import datetime, timezone
+import re
+import time
 from typing import Optional
+import uuid
 from uuid import UUID
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -28,6 +33,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.r2_storage import (
     delete_media,
+    delete_media_batch,
     get_presigned_url,
     upload_media,
     validate_image_dimensions,
@@ -54,6 +60,31 @@ def _bust_cache():
         pass
 
 router = APIRouter(tags=["students"])
+
+# ── Registration Rate Limiter ───────────────────────────────────────────────────
+# SEC-02: Rate-limit the public registration endpoint to prevent flood attacks
+# and R2 storage abuse. 30 submissions per IP per 10 minutes accommodates
+# multi-device use on a shared campus network (labs, mobile hotspots, etc.).
+# For multi-worker deployments, replace with a Redis-backed solution.
+_registration_attempts: dict[str, list[float]] = defaultdict(list)
+_REG_MAX_ATTEMPTS = 30
+_REG_WINDOW_SECONDS = 600  # 10 minutes
+
+
+def _check_registration_rate_limit(client_ip: str) -> None:
+    """Raise 429 if the IP has exceeded the registration rate limit."""
+    now = time.time()
+    window_start = now - _REG_WINDOW_SECONDS
+    attempts = [t for t in _registration_attempts[client_ip] if t > window_start]
+    _registration_attempts[client_ip] = attempts
+    if len(attempts) >= _REG_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many registration attempts from this network. Please wait {_REG_WINDOW_SECONDS // 60} minutes.",
+            headers={"Retry-After": str(_REG_WINDOW_SECONDS)},
+        )
+    _registration_attempts[client_ip].append(now)
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -130,12 +161,34 @@ class PublicProgramOut(BaseModel):
     sections_detail: list[PublicSectionOut]
 
 
+# In-memory public programs cache: dict[str, tuple[float, list[PublicProgramOut]]] keyed by active_ay_id
+_public_programs_cache_by_ay: dict[str, tuple[float, list[PublicProgramOut]]] = {}
+
+
+def bust_public_programs_cache():
+    global _public_programs_cache_by_ay
+    _public_programs_cache_by_ay.clear()
+
+
 # ── Public: Academic Programs & Sections ──────────────────────────────────────
 
 @router.get("/api/students/programs", response_model=list[PublicProgramOut])
 async def get_public_programs(
     db: AsyncSession = Depends(get_db),
 ):
+    global _public_programs_cache_by_ay
+
+    # Resolve active AY to only show sections for the current registration period
+    settings_result = await db.execute(select(SystemSettings).limit(1))
+    sys_settings = settings_result.scalar_one_or_none()
+    active_ay_id = sys_settings.active_ay_id if sys_settings else None
+    cache_key = str(active_ay_id) if active_ay_id else "none"
+
+    if cache_key in _public_programs_cache_by_ay:
+        cached_time, cached_data = _public_programs_cache_by_ay[cache_key]
+        if time.time() - cached_time < 300:  # 5 min TTL
+            return cached_data
+
     result = await db.execute(
         select(Course)
         .options(selectinload(Course.organization), selectinload(Course.sections))
@@ -144,13 +197,17 @@ async def get_public_programs(
     courses = result.scalars().all()
     out = []
     for c in courses:
+        # Filter sections to the active AY; fall back to unscoped sections if no AY set
+        if active_ay_id:
+            ay_sections = [s for s in c.sections if s.academic_year_id == active_ay_id]
+        else:
+            ay_sections = c.sections
+
         sorted_secs = sorted(
-            c.sections,
+            ay_sections,
             key=lambda s: [int(t) if t.isdigit() else t for t in s.name.replace('-', ' ').split()]
         )
         sec_names = [s.name for s in sorted_secs]
-        if not sec_names:
-            sec_names = ["1-1"]
         out.append(
             PublicProgramOut(
                 code=c.code,
@@ -163,6 +220,7 @@ async def get_public_programs(
                 ],
             )
         )
+    _public_programs_cache_by_ay[cache_key] = (time.time(), out)
     return out
 
 
@@ -171,8 +229,13 @@ async def get_public_programs(
 @router.post("/api/students/register", response_model=RegisterResponse)
 async def register_student(
     payload: StudentRegisterRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    # SEC-02: Rate limit by client IP before any DB or media work
+    client_ip = request.client.host if request.client else "unknown"
+    _check_registration_rate_limit(client_ip)
+
     # Check registration is open
     settings_result = await db.execute(select(SystemSettings).limit(1))
     sys_settings = settings_result.scalar_one_or_none()
@@ -198,41 +261,134 @@ async def register_student(
     )
     course = course_result.scalar_one_or_none()
 
-    # Resolve section
+    # Active academic year
+    settings_result_ay = await db.execute(select(SystemSettings).limit(1))
+    sys_settings_ay = settings_result_ay.scalar_one_or_none()
+    active_ay = None
+    if sys_settings_ay and sys_settings_ay.active_ay_id:
+        ay_result = await db.execute(
+            select(AcademicYear).where(AcademicYear.id == sys_settings_ay.active_ay_id)
+        )
+        active_ay = ay_result.scalar_one_or_none()
+    if not active_ay:
+        ay_result = await db.execute(
+            select(AcademicYear).where(AcademicYear.is_active == True).limit(1)
+        )
+        active_ay = ay_result.scalar_one_or_none()
+
+    # Resolve section (scoped to active AY)
     section = None
     if course:
         year_int = _year_label_to_int(payload.year_level)
-        sec_result = await db.execute(
-            select(Section).where(
-                Section.course_id == course.id,
-                Section.year_level == year_int,
-                func.upper(Section.name) == payload.section.strip().upper(),
-            )
+        sec_query = select(Section).where(
+            Section.course_id == course.id,
+            Section.year_level == year_int,
+            func.upper(Section.name) == payload.section.strip().upper(),
         )
-        section = sec_result.scalar_one_or_none()
+        if active_ay:
+            sec_query = sec_query.where(Section.academic_year_id == active_ay.id)
+        sec_result = await db.execute(sec_query)
+        section = sec_result.scalars().first()
         # If not found by year_level + name, try by name alone in this course
         if not section:
-            fallback_sec = await db.execute(
-                select(Section).where(
-                    Section.course_id == course.id,
-                    func.upper(Section.name) == payload.section.strip().upper(),
-                )
+            fallback_query = select(Section).where(
+                Section.course_id == course.id,
+                func.upper(Section.name) == payload.section.strip().upper(),
             )
-            section = fallback_sec.scalar_one_or_none()
+            if active_ay:
+                fallback_query = fallback_query.where(Section.academic_year_id == active_ay.id)
+            fallback_sec = await db.execute(fallback_query)
+            section = fallback_sec.scalars().first()
 
-    # Active academic year
-    ay_result = await db.execute(
-        select(AcademicYear).where(AcademicYear.is_active == True).limit(1)
-    )
-    active_ay = ay_result.scalar_one_or_none()
+    # Phase 1.7: Server-side media validation offloaded to worker threads
+    PHOTO_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+    SIG_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 
-    # Upload media to R2 if provided
-    photo_r2_key = None
-    signature_r2_key = None
+    validation_tasks = []
+    if payload.photo_data:
+        validation_tasks.append(
+            asyncio.to_thread(
+                validate_image_dimensions,
+                payload.photo_data,
+                1500,
+                1500,
+                PHOTO_MAX_BYTES,
+            )
+        )
+    else:
+        validation_tasks.append(asyncio.sleep(0, result=(True, "")))
 
-    student_id_placeholder = None  # Will be set after creation for R2 key path
+    if payload.signature_data:
+        validation_tasks.append(
+            asyncio.to_thread(
+                validate_image_dimensions,
+                payload.signature_data,
+                2000,
+                1200,
+                SIG_MAX_BYTES,
+            )
+        )
+    else:
+        validation_tasks.append(asyncio.sleep(0, result=(True, "")))
 
+    (photo_valid, photo_err), (sig_valid, sig_err) = await asyncio.gather(*validation_tasks)
+
+    if not photo_valid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid photo: {photo_err}",
+        )
+    if not sig_valid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid signature: {sig_err}",
+        )
+
+    # Phase 2.2: Server-side emergency contact number length validation
+    contact_number = (payload.emergency_contact_number or "").strip()
+    digits_only = re.sub(r"\D", "", contact_number)
+    if len(digits_only) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Emergency contact number must contain at least 10 digits.",
+        )
+
+    # Generate student UUID upfront so media keys can be built before opening a DB transaction
+    student_id = uuid.uuid4()
+
+    # Format name for Cloudflare R2: Surname, First Name Middle Initial
+    media_name = f"{payload.last_name.strip().upper()}, {payload.first_name.strip().upper()}"
+    if payload.middle_name and payload.middle_name.strip():
+        media_name += f" {payload.middle_name.strip()[0].upper()}."
+
+    # Upload photo & signature to Cloudflare R2 concurrently in worker threads (never blocks asyncio loop)
+    upload_tasks = []
+    if payload.photo_data:
+        upload_tasks.append(
+            asyncio.to_thread(upload_media, payload.photo_data, str(student_id), "photo", filename=media_name)
+        )
+    else:
+        upload_tasks.append(asyncio.sleep(0, result=None))
+
+    if payload.signature_data:
+        upload_tasks.append(
+            asyncio.to_thread(upload_media, payload.signature_data, str(student_id), "signature", filename=media_name)
+        )
+    else:
+        upload_tasks.append(asyncio.sleep(0, result=None))
+
+    upload_results = await asyncio.gather(*upload_tasks, return_exceptions=True)
+    photo_r2_key = upload_results[0] if not isinstance(upload_results[0], Exception) else None
+    if isinstance(upload_results[0], Exception):
+        print(f"[WARN] Photo upload failed: {upload_results[0]}")
+
+    signature_r2_key = upload_results[1] if not isinstance(upload_results[1], Exception) else None
+    if isinstance(upload_results[1], Exception):
+        print(f"[WARN] Signature upload failed: {upload_results[1]}")
+
+    # Create and commit student record in a single atomic database operation (<10ms transaction)
     student = Student(
+        id=student_id,
         student_number=payload.student_number.strip().upper(),
         first_name=payload.first_name.strip().upper(),
         middle_name=(payload.middle_name or "").strip().upper() or None,
@@ -246,36 +402,15 @@ async def register_student(
         academic_year_id=active_ay.id if active_ay else None,
         perm_strt=payload.residential_address.strip(),
         contact_person_name=payload.emergency_contact_name.strip().upper(),
-        contact_person_number=payload.emergency_contact_number.strip(),
+        contact_person_number=contact_number,
         contact_strt=payload.emergency_address.strip(),
+        photo_r2_key=photo_r2_key,
+        signature_r2_key=signature_r2_key,
         status=RegistrationStatus.PENDING,
     )
 
     db.add(student)
-    await db.flush()  # Get the generated UUID before uploading media
-
-    # Format name for Cloudflare R2: Surname, First Name Middle Initial
-    media_name = f"{student.last_name}, {student.first_name}"
-    if student.middle_name and student.middle_name.strip():
-        media_name += f" {student.middle_name.strip()[0].upper()}."
-
-    # Upload photo
-    if payload.photo_data:
-        try:
-            photo_r2_key = upload_media(payload.photo_data, str(student.id), "photo", filename=media_name)
-            student.photo_r2_key = photo_r2_key
-        except Exception as e:
-            print(f"[WARN] Photo upload failed: {e}")
-
-    # Upload signature
-    if payload.signature_data:
-        try:
-            sig_r2_key = upload_media(payload.signature_data, str(student.id), "signature", filename=media_name)
-            student.signature_r2_key = sig_r2_key
-        except Exception as e:
-            print(f"[WARN] Signature upload failed: {e}")
-
-    await db.flush()
+    await db.commit()
 
     _bust_cache()
 
@@ -295,6 +430,9 @@ async def list_students(
     program: Optional[str] = Query(default=None),
     section: Optional[str] = Query(default=None),
     status: Optional[str] = Query(default=None),
+    academic_year: Optional[str] = Query(default=None),
+    academic_year_id: Optional[UUID] = Query(default=None),
+    all_years: bool = Query(default=False),
     deleted: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=100, ge=1, le=500),
@@ -305,8 +443,30 @@ async def list_students(
 
     if deleted:
         q = q.where(Student.deleted_at.isnot(None))
+        if academic_year_id:
+            q = q.where(Student.academic_year_id == academic_year_id)
+        elif academic_year:
+            clean_ay = academic_year.replace("AY", "").strip()
+            ay_res = await db.execute(select(AcademicYear.id).where(AcademicYear.name == clean_ay))
+            target_ay_id = ay_res.scalar_one_or_none()
+            if target_ay_id:
+                q = q.where(Student.academic_year_id == target_ay_id)
     else:
         q = q.where(Student.deleted_at.is_(None))
+        if not all_years:
+            if academic_year_id:
+                q = q.where(Student.academic_year_id == academic_year_id)
+            elif academic_year:
+                clean_ay = academic_year.replace("AY", "").strip()
+                ay_res = await db.execute(select(AcademicYear.id).where(AcademicYear.name == clean_ay))
+                target_ay_id = ay_res.scalar_one_or_none()
+                if target_ay_id:
+                    q = q.where(Student.academic_year_id == target_ay_id)
+            else:
+                settings_res = await db.execute(select(SystemSettings).limit(1))
+                sys_settings = settings_res.scalar_one_or_none()
+                if sys_settings and sys_settings.active_ay_id:
+                    q = q.where(Student.academic_year_id == sys_settings.active_ay_id)
 
     if search:
         s = f"%{search}%"
@@ -396,13 +556,31 @@ async def update_student(
             student.course_id = course_obj.id
 
     if section_name:
-        sec_res = await db.execute(
-            select(Section).where(
-                func.upper(Section.name) == section_name.strip().upper(),
-                Section.course_id == student.course_id,
-            )
+        target_ay_id = student.academic_year_id
+        if not target_ay_id:
+            from app.models.config import SystemSettings
+            settings_res = await db.execute(select(SystemSettings))
+            settings_obj = settings_res.scalars().first()
+            if settings_obj and settings_obj.active_ay_id:
+                target_ay_id = settings_obj.active_ay_id
+
+        sec_query = select(Section).where(
+            func.upper(Section.name) == section_name.strip().upper(),
+            Section.course_id == student.course_id,
         )
-        sec_obj = sec_res.scalar_one_or_none()
+        if target_ay_id:
+            sec_query = sec_query.where(Section.academic_year_id == target_ay_id)
+        sec_res = await db.execute(sec_query)
+        sec_obj = sec_res.scalars().first()
+        if not sec_obj:
+            # Fallback across all AYs for this course
+            sec_fallback = await db.execute(
+                select(Section).where(
+                    func.upper(Section.name) == section_name.strip().upper(),
+                    Section.course_id == student.course_id,
+                )
+            )
+            sec_obj = sec_fallback.scalars().first()
         if sec_obj:
             student.section_id = sec_obj.id
 
@@ -416,14 +594,18 @@ async def update_student(
 
     if photo_data:
         try:
-            photo_r2_key = upload_media(photo_data, str(student.id), "photo", filename=media_name)
+            photo_r2_key = await asyncio.to_thread(
+                upload_media, photo_data, str(student.id), "photo", filename=media_name
+            )
             student.photo_r2_key = photo_r2_key
         except Exception as e:
             print(f"[WARN] Photo upload failed during update: {e}")
 
     if signature_data:
         try:
-            sig_r2_key = upload_media(signature_data, str(student.id), "signature", filename=media_name)
+            sig_r2_key = await asyncio.to_thread(
+                upload_media, signature_data, str(student.id), "signature", filename=media_name
+            )
             student.signature_r2_key = sig_r2_key
         except Exception as e:
             print(f"[WARN] Signature upload failed during update: {e}")
@@ -511,18 +693,35 @@ async def empty_recycle_bin(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
-    result = await db.execute(select(Student).where(Student.deleted_at.isnot(None)))
-    soft_deleted = result.scalars().all()
+    # Phase 3.7: Batch deletions in chunks of 50 to avoid memory spikes and long transactions
+    total_deleted = 0
+    batch_size = 50
 
-    for s in soft_deleted:
-        if s.photo_r2_key:
-            delete_media(s.photo_r2_key)
-        if s.signature_r2_key:
-            delete_media(s.signature_r2_key)
-        await db.delete(s)
+    while True:
+        result = await db.execute(
+            select(Student).where(Student.deleted_at.isnot(None)).limit(batch_size)
+        )
+        batch = result.scalars().all()
+        if not batch:
+            break
+
+        keys_to_delete = []
+        for s in batch:
+            if s.photo_r2_key:
+                keys_to_delete.append(s.photo_r2_key)
+            if s.signature_r2_key:
+                keys_to_delete.append(s.signature_r2_key)
+            await db.delete(s)
+
+        # Phase 3.5: Run batch R2 deletion in thread pool
+        if keys_to_delete:
+            await asyncio.to_thread(delete_media_batch, keys_to_delete)
+
+        await db.commit()
+        total_deleted += len(batch)
 
     _bust_cache()
-    return {"success": True, "message": f"Recycle bin purged ({len(soft_deleted)} records deleted)."}
+    return {"success": True, "message": f"Recycle bin purged ({total_deleted} records deleted)."}
 
 
 # ── Admin: Upload Photo ───────────────────────────────────────────────────────
@@ -540,15 +739,17 @@ async def upload_photo(
         raise HTTPException(status_code=404, detail="Student not found.")
 
     # Validate photo: 1500×1500 px, max 5 MB
-    valid, error = validate_image_dimensions(payload.photo, 1500, 1500, max_bytes=5 * 1024 * 1024)
+    valid, error = await asyncio.to_thread(
+        validate_image_dimensions, payload.photo, 1500, 1500, max_bytes=5 * 1024 * 1024
+    )
     if not valid:
         raise HTTPException(status_code=400, detail=error)
 
     # Delete old photo if exists
     if student.photo_r2_key:
-        delete_media(student.photo_r2_key)
+        await asyncio.to_thread(delete_media, student.photo_r2_key)
 
-    new_key = upload_media(payload.photo, str(student_id), "photo")
+    new_key = await asyncio.to_thread(upload_media, payload.photo, str(student_id), "photo")
     student.photo_r2_key = new_key
     db.add(student)
 
@@ -570,16 +771,16 @@ async def upload_signature(
         raise HTTPException(status_code=404, detail="Student not found.")
 
     # Validate signature: 2000×1200 px, max 5 MB
-    valid, error = validate_image_dimensions(
-        payload.signature, 2000, 1200, max_bytes=5 * 1024 * 1024
+    valid, error = await asyncio.to_thread(
+        validate_image_dimensions, payload.signature, 2000, 1200, max_bytes=5 * 1024 * 1024
     )
     if not valid:
         raise HTTPException(status_code=400, detail=error)
 
     if student.signature_r2_key:
-        delete_media(student.signature_r2_key)
+        await asyncio.to_thread(delete_media, student.signature_r2_key)
 
-    new_key = upload_media(payload.signature, str(student_id), "signature")
+    new_key = await asyncio.to_thread(upload_media, payload.signature, str(student_id), "signature")
     student.signature_r2_key = new_key
     db.add(student)
 
@@ -587,25 +788,38 @@ async def upload_signature(
 
 
 # ── Live Visitor Heartbeat ────────────────────────────────────────────────────
-
-import time
-from pydantic import BaseModel
+import re  # already imported at top, but kept here for clarity
 
 
 class HeartbeatRequest(BaseModel):
     session_id: str
 
 
+# Phase 1.3: Bound the live-visitor dict to prevent unbounded memory growth.
+# Maximum 5000 concurrent sessions tracked; oldest are evicted when full.
+_MAX_LIVE_VISITORS = 5000
+_LIVE_VISITOR_SESSION_RE = re.compile(r'^vis_[a-z0-9]{9,30}$')
 _live_visitors: dict[str, float] = {}
 
 
+def _validate_session_id(session_id: str) -> bool:
+    """Accept only syntactically valid visitor session IDs to prevent key injection."""
+    return bool(session_id and _LIVE_VISITOR_SESSION_RE.match(session_id))
+
+
 def record_visitor_heartbeat(session_id: str):
-    if session_id:
-        _live_visitors[session_id] = time.time()
+    if not _validate_session_id(session_id):
+        return
+    # Phase 1.3: Evict oldest entry if at capacity
+    if len(_live_visitors) >= _MAX_LIVE_VISITORS and session_id not in _live_visitors:
+        oldest_key = next(iter(_live_visitors))
+        del _live_visitors[oldest_key]
+    _live_visitors[session_id] = time.time()
 
 
 def remove_visitor_heartbeat(session_id: str):
-    _live_visitors.pop(session_id, None)
+    if _validate_session_id(session_id):
+        _live_visitors.pop(session_id, None)
 
 
 def get_live_visitor_count(window_seconds: float = 35.0) -> int:
@@ -626,3 +840,14 @@ async def student_heartbeat(payload: HeartbeatRequest):
 async def student_heartbeat_leave(payload: HeartbeatRequest):
     remove_visitor_heartbeat(payload.session_id)
     return {"success": True}
+
+
+@router.get("/api/students/registration-status")
+async def get_registration_status(db: AsyncSession = Depends(get_db)):
+    """Public endpoint to check if student registration is currently open."""
+    try:
+        sys_settings = await db.scalar(select(SystemSettings).limit(1))
+        is_open = sys_settings.registration_open if sys_settings else True
+        return {"is_open": is_open}
+    except Exception:
+        return {"is_open": True}

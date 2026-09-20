@@ -33,7 +33,7 @@ export default function RegistrationClosedView({ academicYear = '2025-2026', onB
         {/* Heading */}
         <h1 className="reg-closed-title">REGISTRATION CLOSED</h1>
         <p className="reg-closed-subtitle">
-          The ID processing period for AY {displayAY} has officially ended.
+          The ID processing period for AY {displayAY} is now closed.
         </p>
 
         {/* Need Help Box */}

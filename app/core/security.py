@@ -7,7 +7,8 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -50,7 +51,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_access_token(token: str) -> dict:
     try:
         return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token.",
@@ -69,14 +70,20 @@ async def get_current_admin(
     Raises 401 if the token is invalid or the user no longer exists.
     """
     from app.models.admin_user import AdminUser  # late import to avoid circular deps
+    from uuid import UUID
 
     payload = decode_access_token(credentials.credentials)
     user_id: str = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload.")
 
-    result = await db.execute(select(AdminUser).where(AdminUser.id == user_id))
+    try:
+        val_uuid = UUID(str(user_id))
+        result = await db.execute(select(AdminUser).where(AdminUser.id == val_uuid))
+    except (ValueError, TypeError):
+        result = await db.execute(select(AdminUser).where(AdminUser.username == str(user_id)))
+
     admin = result.scalar_one_or_none()
-    if not admin:
+    if not admin or not admin.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin user not found.")
     return admin

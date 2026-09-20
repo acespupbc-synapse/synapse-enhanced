@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import get_current_admin
 from app.models.admin_user import AdminUser
-from app.models.config import Course, Organization, Section
+from app.models.config import AcademicYear, Course, Organization, Section, SystemSettings
 from app.models.student import Student
 from app.schemas.programs import (
     CourseCreate,
@@ -28,15 +28,31 @@ from app.schemas.programs import (
     SectionUpdate,
 )
 
+import time
+
 router = APIRouter(prefix="/api/admin/programs", tags=["programs"])
 
+# In-memory programs cache: dict[str, tuple[float, list[CourseOut]]] keyed by active_ay_id (or 'none')
+_cached_programs_by_ay: dict[str, tuple[float, list[CourseOut]]] = {}
 
-def _bust_cache():
+
+def bust_programs_cache():
+    global _cached_programs_by_ay
+    _cached_programs_by_ay.clear()
     try:
         from app.routers.admin import bust_dashboard_cache
         bust_dashboard_cache()
     except Exception:
         pass
+    try:
+        from app.routers.students import bust_public_programs_cache
+        bust_public_programs_cache()
+    except Exception:
+        pass
+
+
+def _bust_cache():
+    bust_programs_cache()
 
 
 @router.get("", response_model=list[CourseOut])
@@ -44,6 +60,21 @@ async def list_programs(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
+    global _cached_programs_by_ay
+
+    # Resolve active AY so we only show sections for the current AY
+    settings_result = await db.execute(
+        select(SystemSettings).options(selectinload(SystemSettings.active_ay)).limit(1)
+    )
+    sys_settings = settings_result.scalar_one_or_none()
+    active_ay_id = sys_settings.active_ay_id if sys_settings else None
+    cache_key = str(active_ay_id) if active_ay_id else "none"
+
+    if cache_key in _cached_programs_by_ay:
+        cached_time, cached_data = _cached_programs_by_ay[cache_key]
+        if time.time() - cached_time < 300:  # 5 min TTL
+            return cached_data
+
     result = await db.execute(
         select(Course)
         .options(selectinload(Course.organization), selectinload(Course.sections))
@@ -52,13 +83,17 @@ async def list_programs(
     courses = result.scalars().all()
     out = []
     for c in courses:
+        # Filter sections to only those for the active AY (or unscoped/legacy if no AY set)
+        if active_ay_id:
+            ay_sections = [s for s in c.sections if s.academic_year_id == active_ay_id]
+        else:
+            ay_sections = c.sections
+
         sorted_secs = sorted(
-            c.sections,
+            ay_sections,
             key=lambda s: [int(t) if t.isdigit() else t for t in s.name.replace('-', ' ').split()]
         )
         sec_names = [s.name for s in sorted_secs]
-        if not sec_names:
-            sec_names = ["1-1"]
         sections_detail = [
             SectionItem(id=s.id, name=s.name, year_level=s.year_level)
             for s in sorted_secs
@@ -74,6 +109,7 @@ async def list_programs(
                 sections_detail=sections_detail,
             )
         )
+    _cached_programs_by_ay[cache_key] = (time.time(), out)
     return out
 
 
@@ -90,19 +126,26 @@ async def create_section(
     if not course:
         raise HTTPException(status_code=404, detail=f"Program '{payload.program_code}' not found.")
 
+    # Resolve active AY to scope the new section
+    settings_result = await db.execute(select(SystemSettings).limit(1))
+    sys_settings = settings_result.scalar_one_or_none()
+    active_ay_id = sys_settings.active_ay_id if sys_settings else None
+
     sec_name = payload.name.strip()
     exist_res = await db.execute(
         select(Section).where(
             Section.course_id == course.id,
+            Section.academic_year_id == active_ay_id,
             func.upper(Section.name) == sec_name.upper(),
         )
     )
     existing = exist_res.scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=400, detail=f"Section '{sec_name}' already exists for {course.code}.")
+        raise HTTPException(status_code=400, detail=f"Section '{sec_name}' already exists for {course.code} in the active AY.")
 
     new_sec = Section(
         course_id=course.id,
+        academic_year_id=active_ay_id,
         year_level=payload.year_level,
         name=sec_name,
         capacity=50,
@@ -136,6 +179,11 @@ async def create_program(
     db.add(course)
     await db.flush()
 
+    # Resolve active AY to scope auto-created sections
+    settings_result = await db.execute(select(SystemSettings).limit(1))
+    sys_settings = settings_result.scalar_one_or_none()
+    active_ay_id = sys_settings.active_ay_id if sys_settings else None
+
     sec_count = max(1, payload.section_count or 1)
     secs_created = []
     created_secs = []
@@ -144,6 +192,7 @@ async def create_program(
         secs_created.append(sec_name)
         sec = Section(
             course_id=course.id,
+            academic_year_id=active_ay_id,
             year_level=1,
             name=sec_name,
             capacity=50,
@@ -200,6 +249,7 @@ async def update_section(
         exist_res = await db.execute(
             select(Section).where(
                 Section.course_id == sec.course_id,
+                Section.academic_year_id == sec.academic_year_id,
                 Section.id != sec.id,
                 func.upper(Section.name) == new_name.upper(),
             )
@@ -279,14 +329,18 @@ async def update_program(
     db.add(course)
     await db.flush()
 
+    # Resolve active AY
+    settings_result = await db.execute(select(SystemSettings).limit(1))
+    sys_settings = settings_result.scalar_one_or_none()
+    active_ay_id = sys_settings.active_ay_id if sys_settings else None
+
     # Manage sections if section_count is specified
     if payload.section_count is not None:
         target_count = max(1, payload.section_count)
-        sec_res = await db.execute(
-            select(Section)
-            .where(Section.course_id == course.id, Section.year_level == 1)
-            .order_by(Section.name)
-        )
+        sec_query = select(Section).where(Section.course_id == course.id, Section.year_level == 1)
+        if active_ay_id:
+            sec_query = sec_query.where(Section.academic_year_id == active_ay_id)
+        sec_res = await db.execute(sec_query.order_by(Section.name))
         curr_secs = sec_res.scalars().all()
         curr_count = len(curr_secs)
 
@@ -295,6 +349,7 @@ async def update_program(
                 sec_name = f"1-{i}"
                 sec = Section(
                     course_id=course.id,
+                    academic_year_id=active_ay_id,
                     year_level=1,
                     name=sec_name,
                     capacity=50,
@@ -312,19 +367,17 @@ async def update_program(
 
     await db.commit()
 
-    # Re-fetch all sections
-    refetched_secs = await db.execute(
-        select(Section)
-        .where(Section.course_id == course.id)
-    )
+    # Re-fetch sections for active AY
+    refetch_query = select(Section).where(Section.course_id == course.id)
+    if active_ay_id:
+        refetch_query = refetch_query.where(Section.academic_year_id == active_ay_id)
+    refetched_secs = await db.execute(refetch_query)
     all_secs_obj = refetched_secs.scalars().all()
     sorted_secs = sorted(
         all_secs_obj,
         key=lambda s: [int(t) if t.isdigit() else t for t in s.name.replace('-', ' ').split()]
     )
     final_secs = [s.name for s in sorted_secs]
-    if not final_secs:
-        final_secs = ["1-1"]
 
     sections_detail = [
         SectionItem(id=s.id, name=s.name, year_level=s.year_level)
