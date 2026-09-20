@@ -119,6 +119,7 @@ def upload_media(
         Body=raw_bytes,
         ContentType=content_type,
     )
+    bust_bucket_metrics_cache()
     return object_key
 
 
@@ -127,6 +128,7 @@ def delete_media(object_key: str) -> None:
     try:
         client = _get_client()
         client.delete_object(Bucket=settings.cf_r2_bucket_name, Key=object_key)
+        bust_bucket_metrics_cache()
     except ClientError:
         pass  # Ignore missing object errors
 
@@ -144,6 +146,7 @@ def delete_media_batch(object_keys: list[str]) -> None:
                 Bucket=settings.cf_r2_bucket_name,
                 Delete={"Objects": [{"Key": k} for k in chunk], "Quiet": True},
             )
+        bust_bucket_metrics_cache()
     except Exception as e:
         print(f"[WARN] Failed to batch delete R2 media: {e}")
 

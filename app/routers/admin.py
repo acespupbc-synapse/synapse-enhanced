@@ -26,6 +26,7 @@ ALLOWED_PROXY_PREFIXES: tuple[str, ...] = (
 )
 
 _db_size_cache = {"mb": 10.52, "ts": 0}
+_DB_SIZE_CACHE_TTL = 30.0  # seconds (balanced: fresh updates without catalog thrashing)
 
 
 def bust_dashboard_cache():
@@ -33,10 +34,9 @@ def bust_dashboard_cache():
     _dashboard_cache["ts"] = 0
 
 
-
 async def _get_db_storage_mb(db: AsyncSession) -> float:
     now = time.time()
-    if now - _db_size_cache["ts"] > 300:
+    if now - _db_size_cache["ts"] > _DB_SIZE_CACHE_TTL:
         try:
             db_size_res = await db.execute(select(func.pg_database_size(func.current_database())))
             size_bytes = db_size_res.scalar() or 0
