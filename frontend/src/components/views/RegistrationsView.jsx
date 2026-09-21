@@ -639,7 +639,7 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
             course: s.course_code || program.code,
             program: s.course_code || program.code,
             yearLevel: s.year_level ? `${s.year_level}${s.year_level === 1 ? 'st' : s.year_level === 2 ? 'nd' : s.year_level === 3 ? 'rd' : 'th'} Year` : '1st Year',
-            section: s.section_name || '1-1',
+            section: s.section_name || null,
             org: s.organization || org?.code || 'ACES',
             gender: s.gender || 'Male',
             birthdate: s.birth_date || '',
@@ -731,9 +731,13 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
       (s.studentNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSection =
       !activeSection ||
-      s.section === activeSection.sec ||
-      s.section?.endsWith(activeSection.sec) ||
-      s.section === `${program.code} ${activeSection.sec}`;
+      activeSection.sec === 'All' ||
+      // Only match students that have a resolved section; null-section students
+      // are excluded from per-section views (they still count in program totals)
+      (s.section !== null &&
+        (s.section === activeSection.sec ||
+         s.section?.endsWith(activeSection.sec) ||
+         s.section === `${program.code} ${activeSection.sec}`));
     return matchesSearch && matchesSection;
   });
 

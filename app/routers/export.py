@@ -464,26 +464,38 @@ async def export_archive(
             zf.writestr("Database_Records.json", json_data)
             zf.writestr("README.txt", f"ACES Synapse Complete Backup Archive\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nTotal Student Records: {len(students)}\n")
 
-            # 4. Download media from R2 into cache
+            # 4. Download all unique media from R2 in parallel (Fix 2-A)
+            # Collect unique keys first to avoid duplicate downloads
+            all_r2_keys = list({
+                key
+                for s in students
+                for key in [s.photo_r2_key, s.signature_r2_key]
+                if key
+            })
+
             media_cache = {}
-            try:
-                r2_client = _get_client()
-                bucket = settings_cfg.cf_r2_bucket_name
-                for s in students:
-                    if s.photo_r2_key and s.photo_r2_key not in media_cache:
-                        try:
-                            obj = r2_client.get_object(Bucket=bucket, Key=s.photo_r2_key)
-                            media_cache[s.photo_r2_key] = obj["Body"].read()
-                        except Exception:
-                            pass
-                    if s.signature_r2_key and s.signature_r2_key not in media_cache:
-                        try:
-                            obj = r2_client.get_object(Bucket=bucket, Key=s.signature_r2_key)
-                            media_cache[s.signature_r2_key] = obj["Body"].read()
-                        except Exception:
-                            pass
-            except Exception as e:
-                print(f"[WARN] Archive R2 media bundle: {e}")
+            if all_r2_keys:
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                try:
+                    r2_client = _get_client()
+                    bucket = settings_cfg.cf_r2_bucket_name
+
+                    def _fetch_one(key):
+                        obj = r2_client.get_object(Bucket=bucket, Key=key)
+                        return key, obj["Body"].read()
+
+                    # max_workers=8: fast enough to parallelize 38+ files in ~5-8s
+                    # without overwhelming the R2 rate limiter
+                    with ThreadPoolExecutor(max_workers=8) as pool:
+                        futures = {pool.submit(_fetch_one, k): k for k in all_r2_keys}
+                        for fut in as_completed(futures):
+                            try:
+                                key, data = fut.result()
+                                media_cache[key] = data
+                            except Exception:
+                                pass  # Missing media is non-fatal; archive continues without it
+                except Exception as e:
+                    print(f"[WARN] Archive R2 media bundle: {e}")
 
             # 5. Group students by (AY, Course, Section) for structured folder export
             groups = {}
@@ -497,7 +509,9 @@ async def export_archive(
                     groups[key] = []
                 groups[key].append(s)
 
-            # Write per-section CSV, MDB, and media into {AY}/{Program}/{Section}/
+            # 5. Write per-section CSV and media into {AY}/{Program}/{Section}/
+            # Per-section MDB removed (Fix 2-B): one master MDB at root is sufficient.
+            # Admins needing a per-section MDB can export via Programs tab → section → Export MDB.
             for (ay_dir, course_dir, sec_dir), sec_students in groups.items():
                 folder_prefix = f"{ay_dir}/{course_dir}/{sec_dir}"
                 file_base = f"{ay_dir}_{course_dir}_{sec_dir}"
@@ -511,14 +525,6 @@ async def export_archive(
                     except Exception:
                         continue
                 zf.writestr(f"{folder_prefix}/{file_base}.csv", "\n".join(sec_csv_rows))
-
-                # Section MDB with binary pictures/signatures
-                try:
-                    from app.core.mdb_generator import generate_mdb_bytes
-                    sec_mdb_bytes = generate_mdb_bytes(sec_students, media_cache)
-                    zf.writestr(f"{folder_prefix}/{file_base}.mdb", sec_mdb_bytes)
-                except Exception as err:
-                    print(f"[WARN] Failed to write section MDB for {folder_prefix}: {err}")
 
                 # Section Media: PICTURES/ and SIGNATURES/
                 written_paths = set()

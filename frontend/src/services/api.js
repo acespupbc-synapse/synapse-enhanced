@@ -198,7 +198,11 @@ export const studentApi = {
   },
 
   async getAll(params = {}) {
-    const query = new URLSearchParams(params).toString();
+    // Always request the full program roster for drilldown views.
+    // limit=500 covers the confirmed max of 300 students/program/AY with headroom.
+    // Explicit callers may override by passing their own limit in params.
+    const resolved = { limit: 500, ...params };
+    const query = new URLSearchParams(resolved).toString();
     try {
       return await request(`/admin/students?${query}`);
     } catch (_) {
@@ -543,9 +547,11 @@ export const exportApi = {
 
   async downloadArchive() {
     try {
+      // 10-minute timeout: covers both server generation time (~30-60s parallelized)
+      // AND download transfer time on slow campus connections (100+ MB archive).
       const blob = await request('/admin/exports/archive', {
         responseType: 'blob',
-        timeout: 180000,
+        timeout: 600000,
       });
       if (!blob || blob.size === 0) {
         throw new Error('Server returned empty file');
@@ -561,7 +567,11 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadArchive] Failed:', err.message);
-      throw err;
+      // Surface a clear, user-friendly message for the toast notification
+      const friendly = err.name === 'AbortError'
+        ? 'Archive download timed out. If you have a slow connection, please try again on a faster network, or export sections individually from the Programs tab.'
+        : (err.message || 'Archive download failed.');
+      throw new Error(friendly);
     }
   }
 };

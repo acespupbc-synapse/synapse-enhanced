@@ -1,6 +1,6 @@
 # ACES Synapse Enhanced — Bugs & Quality of Life (QoL) Tracking
 
-## Bugs (B1–B8) — Verification & Status
+## Bugs (B1–B10) — Verification & Status
 
 1. **[FIXED] Emergency contact no data validation**
    - **Fix:** Validated on both client and server side. Server enforces length restrictions and Philippine phone regex (`^09\d{9}$` or `^0\d{9,10}$`). Client validates required presence, minimum 10 digits, and formats phone numbers with spaces (`0991 234 5678`).
@@ -120,4 +120,22 @@
    - **Root Cause:** `_get_r2_storage_info()` calls boto3's `paginator.paginate()` — a synchronous blocking I/O operation — directly from the async event loop. This stalled the entire `/api/admin/dashboard` response (and `/api/admin/capacity`) for 1–3 seconds whenever the 60-second R2 cache expired, causing a visible delay on the storage capacity cards.
    - **Fix:** Wrapped both calls to `_get_r2_storage_info()` in `await asyncio.to_thread(...)` in both `get_capacity` and `get_full_dashboard`, offloading the blocking boto3 paginator to the thread pool so the event loop remains responsive. Extended R2 cache TTL from 60s to 300s (R2 bucket size changes slowly) to reduce Cloudflare API churn.
    - **Files:** `app/routers/admin.py`.
+
+9. **[FIXED] Students missing from section display (e.g. BSIT 1-1) but present in MDB export**
+   - **Root Cause (1-A):** `studentApi.getAll()` in `api.js` passed no `limit` parameter, so the backend used its default of `limit=100`. Any program with more than 100 students (confirmed max 300/program/AY) silently truncated the display to the 100 most recently registered students. Earlier registrants were invisible in the UI but fully present in the database and MDB export (which uses an unlimited query).
+   - **Root Cause (1-C):** The student mapping in `DrilldownView` fell back `section_name || '1-1'`, so students registered without a resolved section appeared (and were counted) in the 1-1 section, inflating section counts. The `matchesSection` filter also lacked a null guard.
+   - **Fix (1-A):** `getAll()` now always resolves with `limit: 500` as the default, covering the confirmed 300-student maximum with a 200-student safety margin. Explicit callers may still override.
+   - **Fix (1-C):** Section fallback changed from `'1-1'` to `null`. The `matchesSection` filter now explicitly guards against `null` sections, correctly excluding unresolved-section students from per-section views while they remain counted in program totals.
+   - **No database changes were made.** All records in BSIT 1-1 and every other section are intact and unmodified.
+   - **Files:** `frontend/src/services/api.js`, `frontend/src/components/views/RegistrationsView.jsx`.
+
+10. **[FIXED] Complete Archive download times out: "signal is aborted without reaching"**
+    - **Root Cause (2-A):** `_create_archive_zip()` downloaded all R2 media objects sequentially — one `get_object` call per file — resulting in ~38+ serial HTTP round-trips to Cloudflare R2 (19 students × 2 media files). At ~1–2s per object fetch, this took 40–80 seconds just for media download, routinely exceeding the client timeout.
+    - **Root Cause (2-B):** `generate_mdb_bytes()` (a Java subprocess call on Windows via ODBC, or via Jackcess on Linux) was invoked once per section group **plus** once for the master root MDB, multiplying subprocess overhead linearly with the number of sections.
+    - **Root Cause (2-C):** The uvicorn production command had no `--timeout-keep-alive` setting, allowing the OS to kill idle TCP connections mid-transfer during slow archive downloads.
+    - **Fix (2-A):** Replaced the sequential R2 loop with `concurrent.futures.ThreadPoolExecutor(max_workers=8)`, downloading all unique media keys in parallel. Expected speedup: ~40s sequential → ~5–8s parallel for a 19-student dataset; scales linearly at larger sizes.
+    - **Fix (2-B):** Removed per-section `generate_mdb_bytes()` calls from the archive. The archive now generates exactly **one master MDB** at the ZIP root. Per-section MDB export remains available via the Programs tab → section → Export MDB.
+    - **Fix (2-C):** Added `--timeout-keep-alive 120` to `start_prod.ps1` so the TCP connection stays alive for up to 120s between response chunks during large file transfers.
+    - **Fix (2-D):** Archive client timeout raised from 3 minutes to **10 minutes** (`600,000ms`) in `api.js` to accommodate slow campus network connections. `AbortError` now surfaces a clear, actionable message directing admins to the Programs tab as an alternative.
+    - **Files:** `app/routers/export.py`, `start_prod.ps1`, `frontend/src/services/api.js`.
 
