@@ -535,6 +535,7 @@ export const exportApi = {
       }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.href = url;
       const ay = (filters.academicYear || '2026-2027').replace(/^AY\s*/i, '');
       const rawProg = filters.program?.toUpperCase();
       const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;

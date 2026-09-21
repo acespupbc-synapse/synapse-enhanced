@@ -5,11 +5,15 @@ All photos and signatures are stored as private objects.
 Access is via presigned URLs with a configurable expiry.
 """
 import base64
+import hashlib
 import io
+import os
 import re
+import tempfile
 import time
 import unicodedata
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 import boto3
@@ -38,7 +42,13 @@ def _get_client():
             endpoint_url=R2_ENDPOINT,
             aws_access_key_id=settings.cf_r2_access_key_id,
             aws_secret_access_key=settings.cf_r2_secret_access_key,
-            config=Config(signature_version="s3v4"),
+            config=Config(
+                signature_version="s3v4",
+                max_pool_connections=50,
+                connect_timeout=5,
+                read_timeout=15,
+                retries={"max_attempts": 2, "mode": "standard"},
+            ),
             region_name="auto",
         )
     return _r2_client
@@ -268,3 +278,79 @@ def get_bucket_metrics() -> dict:
     _bucket_metrics_cache["data"] = result
     _bucket_metrics_cache["ts"] = now
     return result
+
+
+# ── Persistent Local Media Cache for Fast Exports ───────────────────────────
+MEDIA_CACHE_DIR = os.path.join(tempfile.gettempdir(), "synapse_r2_media_cache")
+os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
+
+
+def invalidate_media_cache(key: str) -> None:
+    """Remove a cached media object from local disk if it exists."""
+    if not key:
+        return
+    h = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    cache_path = os.path.join(MEDIA_CACHE_DIR, f"{h}.bin")
+    try:
+        if os.path.exists(cache_path):
+            os.unlink(cache_path)
+    except Exception:
+        pass
+
+
+def fetch_media_batch(keys: list[str]) -> dict[str, bytes]:
+    """
+    Fetch a list of R2 object keys with a local persistent disk cache.
+    - If an object is already on local disk, loads directly from disk (instant: <1ms).
+    - If not in disk cache, downloads in parallel using up to 30 workers with connection pooling,
+      and writes to disk cache for all subsequent exports.
+    """
+    results: dict[str, bytes] = {}
+    missing_items: list[tuple[str, str]] = []
+
+    # 1. Check local disk cache first
+    for key in set(keys):
+        if not key:
+            continue
+        h = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        cache_path = os.path.join(MEDIA_CACHE_DIR, f"{h}.bin")
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+            try:
+                with open(cache_path, "rb") as f:
+                    results[key] = f.read()
+                continue
+            except Exception:
+                pass
+        missing_items.append((key, cache_path))
+
+    # 2. Concurrently fetch any missing keys from Cloudflare R2
+    if missing_items:
+        r2_client = _get_client()
+        bucket = settings.cf_r2_bucket_name
+
+        def _fetch_and_cache(item: tuple[str, str]) -> tuple[str, bytes]:
+            k, c_path = item
+            obj = r2_client.get_object(Bucket=bucket, Key=k)
+            data = obj["Body"].read()
+            # Atomically save to disk cache
+            try:
+                tmp = f"{c_path}.tmp.{os.getpid()}_{uuid.uuid4().hex[:8]}"
+                with open(tmp, "wb") as f:
+                    f.write(data)
+                os.replace(tmp, c_path)
+            except Exception:
+                pass
+            return k, data
+
+        max_workers = min(30, max(5, len(missing_items)))
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(_fetch_and_cache, item) for item in missing_items]
+            for fut in as_completed(futures):
+                try:
+                    k, data = fut.result()
+                    results[k] = data
+                except Exception as exc:
+                    print(f"[WARN] Failed to download {exc}")
+
+    return results
+

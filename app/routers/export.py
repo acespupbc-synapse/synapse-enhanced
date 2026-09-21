@@ -129,14 +129,12 @@ async def export_mdb(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    from app.core.config import get_settings
     from app.core.mdb_generator import generate_mdb_bytes
-    from app.core.r2_storage import _get_client
+    from app.core.r2_storage import fetch_media_batch
 
     students = await _get_active_students(db, program=program, section=section)
 
-    # 1. Download all photos and signatures for this section in parallel
+    # 1. Download all photos and signatures for this section (cached on local disk)
     all_r2_keys = list({
         key
         for s in students
@@ -144,27 +142,7 @@ async def export_mdb(
         if key
     })
 
-    media_cache = {}
-    if all_r2_keys:
-        try:
-            settings_cfg = get_settings()
-            r2_client = _get_client()
-            bucket = settings_cfg.cf_r2_bucket_name
-
-            def _fetch_one(key):
-                obj = r2_client.get_object(Bucket=bucket, Key=key)
-                return key, obj["Body"].read()
-
-            with ThreadPoolExecutor(max_workers=20) as pool:
-                futures = {pool.submit(_fetch_one, k): k for k in all_r2_keys}
-                for fut in as_completed(futures):
-                    try:
-                        key, data = fut.result()
-                        media_cache[key] = data
-                    except Exception:
-                        pass
-        except Exception as e:
-            print(f"[WARN] Failed to fetch media for MDB: {e}")
+    media_cache = fetch_media_batch(all_r2_keys)
 
     # 2. Generate MDB with all binary photos and signatures embedded
     mdb_bytes = generate_mdb_bytes(students, media_cache)
@@ -178,7 +156,10 @@ async def export_mdb(
     return Response(
         content=mdb_bytes,
         media_type="application/x-msaccess",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{base_filename.replace(' ', '%20')}"},
+        headers={
+            "Content-Disposition": f'attachment; filename="{base_filename}"; filename*=UTF-8\'\'{base_filename.replace(" ", "%20")}',
+            "Content-Length": str(len(mdb_bytes)),
+        },
     )
 
 
@@ -195,15 +176,13 @@ async def export_media(
     import re
     import tempfile
     import zipfile
-    from concurrent.futures import ThreadPoolExecutor, as_completed
     from fastapi.responses import FileResponse
     from starlette.background import BackgroundTask
-    from app.core.config import get_settings
-    from app.core.r2_storage import _get_client
+    from app.core.r2_storage import fetch_media_batch
 
     students = await _get_active_students(db, program=program, section=section)
 
-    # 1. Collect all unique photo and signature keys
+    # 1. Collect all unique photo and signature keys (cached on local disk)
     all_r2_keys = list({
         key
         for s in students
@@ -211,27 +190,7 @@ async def export_media(
         if key
     })
 
-    media_cache = {}
-    if all_r2_keys:
-        try:
-            settings_cfg = get_settings()
-            r2_client = _get_client()
-            bucket = settings_cfg.cf_r2_bucket_name
-
-            def _fetch_one(key):
-                obj = r2_client.get_object(Bucket=bucket, Key=key)
-                return key, obj["Body"].read()
-
-            with ThreadPoolExecutor(max_workers=20) as pool:
-                futures = {pool.submit(_fetch_one, k): k for k in all_r2_keys}
-                for fut in as_completed(futures):
-                    try:
-                        key, data = fut.result()
-                        media_cache[key] = data
-                    except Exception:
-                        pass
-        except Exception as e:
-            print(f"[WARN] Failed to fetch media: {e}")
+    media_cache = fetch_media_batch(all_r2_keys)
 
     # 2. Package PICTURES/ and SIGNATURES/ folders into a lightweight ZIP
     with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
@@ -290,6 +249,7 @@ async def export_xlsx(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
+    import re
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -316,24 +276,30 @@ async def export_xlsx(
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
+    def _clean_str(val):
+        if val is None:
+            return ""
+        # Strip ASCII control chars that break openpyxl XML serialization
+        return re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f]", "", str(val))
+
     # Data rows
     for row_idx, s in enumerate(students, start=2):
-        ws.cell(row=row_idx, column=1, value=s.student_number)
-        ws.cell(row=row_idx, column=2, value=s.last_name)
-        ws.cell(row=row_idx, column=3, value=s.first_name)
-        ws.cell(row=row_idx, column=4, value=s.middle_name or "")
-        ws.cell(row=row_idx, column=5, value=s.gender or "")
+        ws.cell(row=row_idx, column=1, value=_clean_str(s.student_number))
+        ws.cell(row=row_idx, column=2, value=_clean_str(s.last_name))
+        ws.cell(row=row_idx, column=3, value=_clean_str(s.first_name))
+        ws.cell(row=row_idx, column=4, value=_clean_str(s.middle_name or ""))
+        ws.cell(row=row_idx, column=5, value=_clean_str(s.gender or ""))
         ws.cell(row=row_idx, column=6, value=s.birth_date.strftime("%Y-%m-%d") if s.birth_date else "")
-        ws.cell(row=row_idx, column=7, value=s.email)
-        ws.cell(row=row_idx, column=8, value=s.course.code if s.course else "")
-        ws.cell(row=row_idx, column=9, value=s.section.name if s.section else "")
-        ws.cell(row=row_idx, column=10, value=s.section.year_level if s.section else "")
-        ws.cell(row=row_idx, column=11, value=s.academic_year.name if s.academic_year else "")
-        ws.cell(row=row_idx, column=12, value=s.perm_strt or "")
-        ws.cell(row=row_idx, column=13, value=s.contact_person_name or "")
-        ws.cell(row=row_idx, column=14, value=s.contact_person_number or "")
-        ws.cell(row=row_idx, column=15, value=s.contact_strt or "")
-        ws.cell(row=row_idx, column=16, value=s.status)
+        ws.cell(row=row_idx, column=7, value=_clean_str(s.email))
+        ws.cell(row=row_idx, column=8, value=_clean_str(s.course.code if s.course else ""))
+        ws.cell(row=row_idx, column=9, value=_clean_str(s.section.name if s.section else ""))
+        ws.cell(row=row_idx, column=10, value=_clean_str(s.section.year_level if s.section else ""))
+        ws.cell(row=row_idx, column=11, value=_clean_str(s.academic_year.name if s.academic_year else ""))
+        ws.cell(row=row_idx, column=12, value=_clean_str(s.perm_strt or ""))
+        ws.cell(row=row_idx, column=13, value=_clean_str(s.contact_person_name or ""))
+        ws.cell(row=row_idx, column=14, value=_clean_str(s.contact_person_number or ""))
+        ws.cell(row=row_idx, column=15, value=_clean_str(s.contact_strt or ""))
+        ws.cell(row=row_idx, column=16, value=_clean_str(s.status))
         ws.cell(row=row_idx, column=17, value=s.created_at.strftime("%Y-%m-%d") if s.created_at else "")
 
     # Auto-fit columns
@@ -343,7 +309,7 @@ async def export_xlsx(
 
     buffer = io.BytesIO()
     wb.save(buffer)
-    buffer.seek(0)
+    xlsx_bytes = buffer.getvalue()
 
     ay_name = await _get_active_ay_name(db)
     raw_prog = (program or "ALL").strip().upper()
@@ -351,10 +317,13 @@ async def export_xlsx(
     sec_code = (section or "ALL").strip().replace(" ", "_")
     base_xlsx_filename = f"{ay_name}_{prog_code}_{sec_code}.xlsx" if (program or section) else f"PUP Binan AY {ay_name}.xlsx"
 
-    return StreamingResponse(
-        buffer,
+    return Response(
+        content=xlsx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{base_xlsx_filename.replace(' ', '%20')}"},
+        headers={
+            "Content-Disposition": f'attachment; filename="{base_xlsx_filename}"; filename*=UTF-8\'\'{base_xlsx_filename.replace(" ", "%20")}',
+            "Content-Length": str(len(xlsx_bytes)),
+        },
     )
 
 
