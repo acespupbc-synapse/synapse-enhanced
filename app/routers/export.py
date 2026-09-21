@@ -129,13 +129,7 @@ async def export_mdb(
     db: AsyncSession = Depends(get_db),
     _admin: AdminUser = Depends(get_current_admin),
 ):
-    import os
-    import re
-    import tempfile
-    import zipfile
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    from fastapi.responses import FileResponse
-    from starlette.background import BackgroundTask
     from app.core.config import get_settings
     from app.core.mdb_generator import generate_mdb_bytes
     from app.core.r2_storage import _get_client
@@ -161,7 +155,7 @@ async def export_mdb(
                 obj = r2_client.get_object(Bucket=bucket, Key=key)
                 return key, obj["Body"].read()
 
-            with ThreadPoolExecutor(max_workers=16) as pool:
+            with ThreadPoolExecutor(max_workers=20) as pool:
                 futures = {pool.submit(_fetch_one, k): k for k in all_r2_keys}
                 for fut in as_completed(futures):
                     try:
@@ -170,46 +164,86 @@ async def export_mdb(
                     except Exception:
                         pass
         except Exception as e:
-            print(f"[WARN] Failed to fetch media for section export: {e}")
+            print(f"[WARN] Failed to fetch media for MDB: {e}")
 
     # 2. Generate MDB with all binary photos and signatures embedded
     mdb_bytes = generate_mdb_bytes(students, media_cache)
 
-    # 3. Generate CSV
-    csv_headers = [
-        "STUDNO", "LASTNAME", "GENDER", "MDLENAME", "BRTHPLCE", "ADMSYEAR",
-        "FRSTNAME", "BRTHDATE", "EMAILADR", "MPHNNMBR", "PERMBLDG", "PROGCODE",
-        "PERMDSTR", "PERMCITY", "PERMSTAD", "PERMCTRY", "PERMPOST", "PHNENMBR",
-        "PERMSTRT", "CTCTPRSN", "CTCTBLDG", "CTCTDSTR", "CTCTCITY", "CTCTSTAD",
-        "CTCTPOST", "CPHNNMBR", "CTCTSTRT", "RCRDDATE", "CTCTNMBR", "ACADLEVL",
-    ]
-    csv_rows = [",".join(csv_headers)]
-    for s in students:
-        try:
-            record = transform_student_to_mdb_csv(s)
-            row = [f'"{getattr(record, h, "")}"' for h in csv_headers]
-            csv_rows.append(",".join(row))
-        except Exception:
-            continue
-
-    # Resolve active AY, program, and section names for filenames
     ay_name = await _get_active_ay_name(db)
     raw_prog = (program or "ALL").strip().upper()
     prog_code = "BSP" if raw_prog in ("BSPSY", "BSP") else raw_prog
     sec_code = (section or "ALL").strip().replace(" ", "_")
-    file_base = f"{ay_name}_{prog_code}_{sec_code}"
+    base_filename = f"{ay_name}_{prog_code}_{sec_code}.mdb"
 
-    # 4. Package MDB, CSV, PICTURES/, and SIGNATURES/ into a section ZIP
+    return Response(
+        content=mdb_bytes,
+        media_type="application/x-msaccess",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{base_filename.replace(' ', '%20')}"},
+    )
+
+
+# ── Photos & Signatures Media Export (ZIP) ───────────────────────────────────
+
+@router.get("/media")
+async def export_media(
+    program: Optional[str] = Query(None),
+    section: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _admin: AdminUser = Depends(get_current_admin),
+):
+    import os
+    import re
+    import tempfile
+    import zipfile
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from fastapi.responses import FileResponse
+    from starlette.background import BackgroundTask
+    from app.core.config import get_settings
+    from app.core.r2_storage import _get_client
+
+    students = await _get_active_students(db, program=program, section=section)
+
+    # 1. Collect all unique photo and signature keys
+    all_r2_keys = list({
+        key
+        for s in students
+        for key in [s.photo_r2_key, s.signature_r2_key]
+        if key
+    })
+
+    media_cache = {}
+    if all_r2_keys:
+        try:
+            settings_cfg = get_settings()
+            r2_client = _get_client()
+            bucket = settings_cfg.cf_r2_bucket_name
+
+            def _fetch_one(key):
+                obj = r2_client.get_object(Bucket=bucket, Key=key)
+                return key, obj["Body"].read()
+
+            with ThreadPoolExecutor(max_workers=20) as pool:
+                futures = {pool.submit(_fetch_one, k): k for k in all_r2_keys}
+                for fut in as_completed(futures):
+                    try:
+                        key, data = fut.result()
+                        media_cache[key] = data
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[WARN] Failed to fetch media: {e}")
+
+    # 2. Package PICTURES/ and SIGNATURES/ folders into a lightweight ZIP
     with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
         tmp_zip_path = tmp.name
 
-    with zipfile.ZipFile(tmp_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        # Section MDB with binary pictures and signatures
-        zf.writestr(f"{file_base}.mdb", mdb_bytes)
-        # Section CSV
-        zf.writestr(f"{file_base}.csv", "\n".join(csv_rows))
+    ay_name = await _get_active_ay_name(db)
+    raw_prog = (program or "ALL").strip().upper()
+    prog_code = "BSP" if raw_prog in ("BSPSY", "BSP") else raw_prog
+    sec_code = (section or "ALL").strip().replace(" ", "_")
+    zip_filename = f"{ay_name}_{prog_code}_{sec_code}_Photos_and_Signatures.zip"
 
-        # PICTURES/ and SIGNATURES/ folders
+    with zipfile.ZipFile(tmp_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         written_paths = set()
         for s in students:
             surname = re.sub(r'[^A-Za-z0-9]', '', s.last_name or '').upper()
@@ -242,7 +276,7 @@ async def export_mdb(
     return FileResponse(
         path=tmp_zip_path,
         media_type="application/zip",
-        filename=f"{file_base}.zip",
+        filename=zip_filename,
         background=BackgroundTask(_cleanup_temp_zip),
     )
 
@@ -312,7 +346,10 @@ async def export_xlsx(
     buffer.seek(0)
 
     ay_name = await _get_active_ay_name(db)
-    base_xlsx_filename = f"PUP Binan AY {ay_name}.xlsx"
+    raw_prog = (program or "ALL").strip().upper()
+    prog_code = "BSP" if raw_prog in ("BSPSY", "BSP") else raw_prog
+    sec_code = (section or "ALL").strip().replace(" ", "_")
+    base_xlsx_filename = f"{ay_name}_{prog_code}_{sec_code}.xlsx" if (program or section) else f"PUP Binan AY {ay_name}.xlsx"
 
     return StreamingResponse(
         buffer,

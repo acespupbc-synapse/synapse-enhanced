@@ -694,35 +694,39 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
 
     // Stage 1: Compiling
     if (onShowToast) {
-      const msg = format === 'mdb'
-        ? `Compiling MDB & bundling media for ${label}...`
-        : `Compiling ${format.toUpperCase()} for ${label}...`;
+      let msg = `Compiling ${format.toUpperCase()} for ${label}...`;
+      if (format === 'mdb') msg = `Compiling MDB with photos & signatures for ${label}...`;
+      else if (format === 'media') msg = `Bundling photos & signatures for ${label}...`;
+      else if (format === 'xlsx') msg = `Generating Excel sheet for ${label}...`;
       onShowToast(msg, { loading: true });
     }
 
     // Stage 2: Exporting (if operation takes > 700ms)
     const stageTimer = setTimeout(() => {
       if (!finished && onShowToast) {
-        const msg = format === 'mdb'
-          ? `Packaging MDB & media (.zip) for ${label}...`
-          : `Exporting ${format.toUpperCase()} for ${label}...`;
+        let msg = `Exporting ${format.toUpperCase()} for ${label}...`;
+        if (format === 'mdb') msg = `Generating MDB file for ${label}...`;
+        else if (format === 'media') msg = `Downloading photos & signatures for ${label}...`;
+        else if (format === 'xlsx') msg = `Compiling Excel sheet for ${label}...`;
         onShowToast(msg, { loading: true });
       }
     }, 700);
 
     try {
-      if (format === 'csv') await exportApi.downloadCsv(filter);
+      if (format === 'mdb') await exportApi.downloadMdb(filter);
+      else if (format === 'media') await exportApi.downloadMedia(filter);
       else if (format === 'xlsx') await exportApi.downloadXlsx(filter);
+      else if (format === 'csv') await exportApi.downloadCsv(filter);
       else if (format === 'pdf') await exportApi.downloadPdf(filter);
-      else if (format === 'mdb') await exportApi.downloadMdb(filter);
 
       finished = true;
       clearTimeout(stageTimer);
 
       if (onShowToast) {
-        const successMsg = format === 'mdb'
-          ? `MDB & Media package (.zip) downloaded for ${label}.`
-          : `${format.toUpperCase()} export downloaded for ${label}.`;
+        let successMsg = `${format.toUpperCase()} export downloaded for ${label}.`;
+        if (format === 'mdb') successMsg = `MDB file (.mdb) downloaded for ${label}.`;
+        else if (format === 'media') successMsg = `Photos & signatures (.zip) downloaded for ${label}.`;
+        else if (format === 'xlsx') successMsg = `Excel export (.xlsx) downloaded for ${label}.`;
         onShowToast(successMsg);
       }
     } catch (err) {
@@ -945,21 +949,31 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
                     type="button"
                     className="regs-export-menu-item"
                     onClick={() => {
-                      handleSectionExport('csv');
+                      handleSectionExport('mdb');
                       setShowExportMenu(false);
                     }}
                   >
-                    Export as CSV
+                    Export as MDB
                   </button>
                   <button
                     type="button"
                     className="regs-export-menu-item"
                     onClick={() => {
-                      handleSectionExport('mdb');
+                      handleSectionExport('media');
                       setShowExportMenu(false);
                     }}
                   >
-                    Export MDB &amp; Media (.zip)
+                    Export Photos and Signature
+                  </button>
+                  <button
+                    type="button"
+                    className="regs-export-menu-item"
+                    onClick={() => {
+                      handleSectionExport('xlsx');
+                      setShowExportMenu(false);
+                    }}
+                  >
+                    Export as xlsx
                   </button>
                 </div>
               )}

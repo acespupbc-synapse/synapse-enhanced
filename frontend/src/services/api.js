@@ -478,8 +478,8 @@ export const exportApi = {
       const rawProg = filters.program?.toUpperCase();
       const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;
       const filename = exportProg && filters.section
-        ? `${ay}_${exportProg}_${filters.section}.zip`
-        : (exportProg ? `${ay}_${exportProg}.zip` : `${ay}_All_Registrations.zip`);
+        ? `${ay}_${exportProg}_${filters.section}.mdb`
+        : (exportProg ? `${ay}_${exportProg}.mdb` : `${ay}_All_Registrations.mdb`);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -488,6 +488,37 @@ export const exportApi = {
       return true;
     } catch (err) {
       console.warn('[exportApi.downloadMdb] Failed:', err.message);
+      throw err;
+    }
+  },
+
+  async downloadMedia(filters = {}) {
+    const query = new URLSearchParams(filters).toString();
+    try {
+      const blob = await request(`/admin/exports/media${query ? `?${query}` : ''}`, {
+        responseType: 'blob',
+        timeout: 120000,
+      });
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned empty file');
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ay = (filters.academicYear || '2026-2027').replace(/^AY\s*/i, '');
+      const rawProg = filters.program?.toUpperCase();
+      const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;
+      const filename = exportProg && filters.section
+        ? `${ay}_${exportProg}_${filters.section}_Photos_and_Signatures.zip`
+        : (exportProg ? `${ay}_${exportProg}_Photos_and_Signatures.zip` : `${ay}_Photos_and_Signatures.zip`);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return true;
+    } catch (err) {
+      console.warn('[exportApi.downloadMedia] Failed:', err.message);
       throw err;
     }
   },
@@ -504,10 +535,13 @@ export const exportApi = {
       }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      const ay = (filters.academicYear || '2026-2027').replace(/^AY\s*/i, '');
       const rawProg = filters.program?.toUpperCase();
       const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;
-      const tag = exportProg ? (filters.section ? `_${exportProg}_${filters.section}` : `_${exportProg}`) : '';
-      a.download = `ACES_Synapse_Export${tag}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const filename = exportProg && filters.section
+        ? `${ay}_${exportProg}_${filters.section}.xlsx`
+        : (exportProg ? `${ay}_${exportProg}.xlsx` : `${ay}_All_Registrations.xlsx`);
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
