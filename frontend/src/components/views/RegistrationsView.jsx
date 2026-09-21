@@ -694,13 +694,19 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
 
     // Stage 1: Compiling
     if (onShowToast) {
-      onShowToast(`Compiling ${format.toUpperCase()} for ${label}...`, { loading: true });
+      const msg = format === 'mdb'
+        ? `Compiling MDB & bundling media for ${label}...`
+        : `Compiling ${format.toUpperCase()} for ${label}...`;
+      onShowToast(msg, { loading: true });
     }
 
     // Stage 2: Exporting (if operation takes > 700ms)
     const stageTimer = setTimeout(() => {
       if (!finished && onShowToast) {
-        onShowToast(`Exporting ${format.toUpperCase()} for ${label}...`, { loading: true });
+        const msg = format === 'mdb'
+          ? `Packaging MDB & media (.zip) for ${label}...`
+          : `Exporting ${format.toUpperCase()} for ${label}...`;
+        onShowToast(msg, { loading: true });
       }
     }, 700);
 
@@ -714,7 +720,10 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
       clearTimeout(stageTimer);
 
       if (onShowToast) {
-        onShowToast(`${format.toUpperCase()} export downloaded for ${label}.`);
+        const successMsg = format === 'mdb'
+          ? `MDB & Media package (.zip) downloaded for ${label}.`
+          : `${format.toUpperCase()} export downloaded for ${label}.`;
+        onShowToast(successMsg);
       }
     } catch (err) {
       finished = true;
@@ -950,7 +959,7 @@ function DrilldownView({ org, program, onBack, onShowToast, stats }) {
                       setShowExportMenu(false);
                     }}
                   >
-                    Export as MDB
+                    Export MDB &amp; Media (.zip)
                   </button>
                 </div>
               )}

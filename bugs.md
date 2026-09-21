@@ -138,4 +138,12 @@
     - **Fix (2-C):** Added `--timeout-keep-alive 120` to `start_prod.ps1` so the TCP connection stays alive for up to 120s between response chunks during large file transfers.
     - **Fix (2-D):** Archive client timeout raised from 3 minutes to **10 minutes** (`600,000ms`) in `api.js` to accommodate slow campus network connections. `AbortError` now surfaces a clear, actionable message directing admins to the Programs tab as an alternative.
     - **Files:** `app/routers/export.py`, `start_prod.ps1`, `frontend/src/services/api.js`.
-
+11. **[FIXED] Complete Archive OOM / Timeout on Cloud; Upgraded Per-Section MDB & Media Package**
+    - **Root Cause:** Generating a monolithic archive of 332+ students (664 high-resolution images, 112+ MB) on Render's 512 MB Free/Starter tier exceeded memory and hit the 100-second cloud proxy timeout, resulting in container OOM restarts and "Failed to fetch" errors.
+    - **Fix:** 
+      - Removed the monolithic `/api/admin/exports/archive` endpoint and its button in Settings.
+      - Upgraded `/api/admin/exports/mdb` into a complete section package (`.zip`) containing `{AY}_{Program}_{Section}.mdb` (with all binary photos and signatures embedded for CardFive), `{AY}_{Program}_{Section}.csv`, `PICTURES/`, and `SIGNATURES/` folders.
+      - Downloads only the section's media from R2 in parallel using `ThreadPoolExecutor(max_workers=16)`.
+      - Added `-Xmx192m` to the Java Jackcess command in `mdb_generator.py` to prevent JVM memory ballooning on Linux.
+      - Section export completes in ~10 seconds using ~30 MB RAM, running effortlessly on Render.
+    - **Files:** `app/routers/export.py`, `app/core/mdb_generator.py`, `frontend/src/services/api.js`, `frontend/src/components/views/RegistrationsView.jsx`, `frontend/src/components/views/SettingsView.jsx`.

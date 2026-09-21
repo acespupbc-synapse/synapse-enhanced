@@ -229,47 +229,6 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
     }
   };
 
-  // Download Complete Archive (Genuine .ZIP containing CSV, XLSX, JSON and Cloudflare R2 Photos & Signatures)
-  const handleDownloadCompleteArchive = async () => {
-    let finished = false;
-
-    // Stage 1: Compiling
-    if (onShowToast) {
-      onShowToast('Compiling system records...', { loading: true });
-    }
-
-    // Stage 2: Bundling
-    const stage2Timer = setTimeout(() => {
-      if (!finished && onShowToast) {
-        onShowToast('Bundling R2 media & MDB databases...', { loading: true });
-      }
-    }, 2000);
-
-    // Stage 3: Exporting
-    const stage3Timer = setTimeout(() => {
-      if (!finished && onShowToast) {
-        onShowToast('Exporting complete archive (.zip)...', { loading: true });
-      }
-    }, 4800);
-
-    try {
-      await exportApi.downloadArchive();
-      finished = true;
-      clearTimeout(stage2Timer);
-      clearTimeout(stage3Timer);
-
-      if (onShowToast) {
-        onShowToast('Complete system archive (.zip) downloaded successfully.');
-      }
-    } catch (err) {
-      finished = true;
-      clearTimeout(stage2Timer);
-      clearTimeout(stage3Timer);
-      if (onShowToast) {
-        onShowToast(`Could not download complete archive: ${err.message || 'Server error'}`);
-      }
-    }
-  };
 
   // Download System snapshot
   const handleDownloadBackup = () => {
@@ -635,9 +594,9 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
                 <div className="settings-card-header">
                   <div>
                     <span className="settings-card-kicker">DATABASE &amp; EXPORTS</span>
-                    <h2 className="settings-card-title">Database Records &amp; Media Archives</h2>
+                    <h2 className="settings-card-title">Database &amp; Storage Metrics</h2>
                     <p className="settings-card-desc">
-                      Download full data dumps including database rows, student photos, and signatures.
+                      View database metrics and system storage. Student records, MDB databases, and media packages are exported per section from the Registrations view.
                     </p>
                   </div>
                 </div>
@@ -686,15 +645,6 @@ export default function SettingsView({ stats, onToggleRegistration, onShowToast,
                 </div>
 
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
-                  <button
-                    type="button"
-                    className="btn-primary-archive"
-                    onClick={handleDownloadCompleteArchive}
-                  >
-                    <FileArchive size={18} weight="bold" />
-                    <span>Download Complete Archive (DB + Photos + Signatures)</span>
-                  </button>
-
                   <button
                     type="button"
                     className="btn-secondary"

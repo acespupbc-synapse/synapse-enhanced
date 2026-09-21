@@ -196,7 +196,7 @@ def generate_mdb_bytes_jackcess(
         with open(tsv_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        cmd = [java_cmd, "-jar", MDB_WRITER_JAR, TEMPLATE_MDB_PATH, tsv_path, out_mdb]
+        cmd = [java_cmd, "-Xmx192m", "-jar", MDB_WRITER_JAR, TEMPLATE_MDB_PATH, tsv_path, out_mdb]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
             raise RuntimeError(f"Jackcess mdb-writer failed: {res.stderr or res.stdout}")

@@ -305,11 +305,12 @@ export default function BentoGrid({
   const recycleBinCount = String(stats?.recycleBinCount ?? 0).padStart(2, '0');
 
   const progCounts = stats?.programCounts || {};
+  const maxProgCount = Math.max(1, ...Object.values(progCounts));
   const topPrograms = Object.entries(progCounts).length > 0
     ? Object.entries(progCounts)
-        .map(([name, count]) => ({ name, count, max: Math.max(10, count * 2) }))
-        .sort((a, b) => b.count - a.count)
+        .sort((a, b) => b[1] - a[1])
         .slice(0, 4)
+        .map(([name, count]) => ({ name, count, max: maxProgCount }))
     : [];
 
   const handleOpenFeedStudent = async (item, idx) => {
@@ -524,7 +525,7 @@ export default function BentoGrid({
                     <div className="prog-bar-track">
                       <div
                         className="prog-bar-fill"
-                        style={{ width: `${Math.min(100, (prog.count / (prog.max || 1)) * 100)}%` }}
+                        style={{ width: `${Math.min(100, Math.max(6, (prog.count / (prog.max || 1)) * 100))}%` }}
                       />
                     </div>
                     <span className="prog-count">{prog.count}</span>

@@ -478,8 +478,8 @@ export const exportApi = {
       const rawProg = filters.program?.toUpperCase();
       const exportProg = rawProg === 'BSPSY' ? 'BSP' : filters.program;
       const filename = exportProg && filters.section
-        ? `${ay}_${exportProg}_${filters.section}.mdb`
-        : (exportProg ? `${ay}_${exportProg}.mdb` : `${ay}_All_Registrations.mdb`);
+        ? `${ay}_${exportProg}_${filters.section}.zip`
+        : (exportProg ? `${ay}_${exportProg}.zip` : `${ay}_All_Registrations.zip`);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -544,36 +544,6 @@ export const exportApi = {
       throw err;
     }
   },
-
-  async downloadArchive() {
-    try {
-      // 10-minute timeout: covers both server generation time (~30-60s parallelized)
-      // AND download transfer time on slow campus connections (100+ MB archive).
-      const blob = await request('/admin/exports/archive', {
-        responseType: 'blob',
-        timeout: 600000,
-      });
-      if (!blob || blob.size === 0) {
-        throw new Error('Server returned empty file');
-      }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ACES_Synapse_Complete_Archive_${new Date().toISOString().slice(0, 10)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      return true;
-    } catch (err) {
-      console.warn('[exportApi.downloadArchive] Failed:', err.message);
-      // Surface a clear, user-friendly message for the toast notification
-      const friendly = err.name === 'AbortError'
-        ? 'Archive download timed out. If you have a slow connection, please try again on a faster network, or export sections individually from the Programs tab.'
-        : (err.message || 'Archive download failed.');
-      throw new Error(friendly);
-    }
-  }
 };
 
 export default {
